@@ -1,11 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import pdfParse from 'pdf-parse'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-})
+// Lazy initialization to avoid build-time errors
+let openai = null
+
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+  }
+  return openai
+}
+
+// Dynamic import for pdf-parse to avoid build issues
+async function parsePDF(buffer) {
+  const pdfParse = (await import('pdf-parse')).default
+  return pdfParse(buffer)
+}
 
 export async function POST(request) {
   try {
@@ -34,20 +47,28 @@ export async function POST(request) {
     // Download PDF
     const response = await fetch(material.file_url)
     const buffer = await response.arrayBuffer()
-    
+
     // Extract text
-    const pdfData = await pdfParse(Buffer.from(buffer))
+    const pdfData = await parsePDF(Buffer.from(buffer))
     const fullText = pdfData.text
     
     // Chunk text (500-800 characters per chunk)
     const chunks = chunkText(fullText, 700)
     
     // Generate embeddings for each chunk
+    const openaiClient = getOpenAI()
+    if (!openaiClient) {
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured' },
+        { status: 500 }
+      )
+    }
+
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]
-      
+
       // Generate embedding
-      const embeddingResponse = await openai.embeddings.create({
+      const embeddingResponse = await openaiClient.embeddings.create({
         model: "text-embedding-3-small",
         input: chunk.text,
       })

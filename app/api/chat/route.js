@@ -4,13 +4,34 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import { Redis } from '@upstash/redis'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+// Lazy initialization to avoid build-time errors
+let genAI = null
+let openai = null
+let redis = null
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_URL,
-  token: process.env.UPSTASH_REDIS_TOKEN,
-})
+function getGenAI() {
+  if (!genAI && process.env.GEMINI_API_KEY) {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  }
+  return genAI
+}
+
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  }
+  return openai
+}
+
+function getRedis() {
+  if (!redis && process.env.UPSTASH_REDIS_URL && process.env.UPSTASH_REDIS_TOKEN) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_URL,
+      token: process.env.UPSTASH_REDIS_TOKEN,
+    })
+  }
+  return redis
+}
 
 export async function POST(request) {
   try {
@@ -18,8 +39,9 @@ export async function POST(request) {
     const supabase = createClient()
     
     // Check cache first
+    const redisClient = getRedis()
     const cacheKey = `answer:${courseId}:${hashString(question.toLowerCase())}`
-    const cached = await redis.get(cacheKey)
+    const cached = redisClient ? await redisClient.get(cacheKey) : null
     
     if (cached) {
       console.log('Cache hit!')
@@ -31,7 +53,14 @@ export async function POST(request) {
     }
     
     // Generate embedding for question
-    const embeddingResponse = await openai.embeddings.create({
+    const openaiClient = getOpenAI()
+    if (!openaiClient) {
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured' },
+        { status: 500 }
+      )
+    }
+    const embeddingResponse = await openaiClient.embeddings.create({
       model: "text-embedding-3-small",
       input: question,
     })
@@ -74,7 +103,14 @@ export async function POST(request) {
     }
     
     // Generate answer with Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+    const genAIClient = getGenAI()
+    if (!genAIClient) {
+      return NextResponse.json(
+        { error: 'Gemini API key not configured' },
+        { status: 500 }
+      )
+    }
+    const model = genAIClient.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
     
     const prompt = `You are a helpful tutor for JKUAT students studying ${courseName}.
 
@@ -105,10 +141,12 @@ Provide a clear, helpful answer based ONLY on the materials above. Cite your sou
     }))
     
     // Cache the result
-    await redis.set(cacheKey, 
-      JSON.stringify({ answer, sources }),
-      { ex: 30 * 24 * 60 * 60 } // 30 days TTL
-    )
+    if (redisClient) {
+      await redisClient.set(cacheKey,
+        JSON.stringify({ answer, sources }),
+        { ex: 30 * 24 * 60 * 60 } // 30 days TTL
+      )
+    }
     
     // Track analytics
     await supabase.from('analytics_events').insert({
