@@ -24,6 +24,9 @@ export async function POST(req) {
     const title = formData.get('title')
     const description = formData.get('description')
     const uploaderName = formData.get('uploader_name') || 'Anonymous'
+    const materialCategory = formData.get('material_category')
+    const categoryMetadata = formData.get('category_metadata')
+    const weekNumber = formData.get('week_number')
     
     // Validate
     if (!file || !courseId || !title) {
@@ -80,6 +83,16 @@ export async function POST(req) {
       .from('course pdfs')
       .getPublicUrl(fileName)
     
+    // Parse category metadata if provided
+    let parsedMetadata = null
+    if (categoryMetadata) {
+      try {
+        parsedMetadata = JSON.parse(categoryMetadata)
+      } catch (e) {
+        console.error('Invalid category metadata JSON:', e)
+      }
+    }
+
     // Save metadata to database
     const { data: material, error: dbError } = await supabase
       .from('materials')
@@ -93,7 +106,10 @@ export async function POST(req) {
         file_size: file.size,
         uploaded_by: uploaderName,
         upload_source: 'class_rep',
-        status: 'pending'
+        status: 'approved', // TESTING: Auto-approve materials (bypass admin approval)
+        material_category: materialCategory || null,
+        category_metadata: parsedMetadata,
+        week_number: weekNumber ? parseInt(weekNumber) : null
       })
       .select('id, title')
       .single()
@@ -113,16 +129,52 @@ export async function POST(req) {
       .eq('id', courseId)
       .single()
     
-    const { data: topic } = topicId 
-      ? await supabase.from('topics').select('topic_name').eq('id', topicId).single()
+    const { data: topic } = topicId
+      ? await supabase.from('topics').select('topic_name, unit_code, year, semester').eq('id', topicId).single()
       : { data: null }
-    
+
+    // Format material type for share message
+    const formatMaterialType = () => {
+      if (!materialCategory) return ''
+
+      const typeLabels = {
+        'complete_notes': 'Complete Semester Notes',
+        'weekly_notes': 'Weekly Notes',
+        'past_paper': 'Past Paper',
+        'assignment': 'Assignment',
+        'lab_guide': 'Lab Guide',
+        'other': 'Material'
+      }
+
+      let typeStr = typeLabels[materialCategory] || 'Material'
+
+      if (parsedMetadata) {
+        if (parsedMetadata.week) typeStr += ` (Week ${parsedMetadata.week})`
+        if (parsedMetadata.year) typeStr += ` (${parsedMetadata.year})`
+        if (parsedMetadata.assignment_number) typeStr += ` #${parsedMetadata.assignment_number}`
+      }
+
+      return `Type: ${typeStr}\n`
+    }
+
+    // Format topic/unit information
+    const formatTopicInfo = () => {
+      if (!topic) return ''
+
+      const unitLabel = topic.unit_code ? `${topic.unit_code} - ${topic.topic_name}` : topic.topic_name
+      const yearSemInfo = topic.year && topic.semester
+        ? ` (Year ${topic.year}, Semester ${topic.semester})`
+        : ''
+      const weekInfo = weekNumber ? `\nWeek: ${weekNumber}` : ''
+
+      return `Unit: ${unitLabel}${yearSemInfo}${weekInfo}\n`
+    }
+
     // Generate shareable message
     const shareMessage = `✅ New material uploaded!
 
 Course: ${course.course_name} (${course.course_code})
-${topic ? `Topic: ${topic.topic_name}` : ''}
-Material: ${title}
+${formatTopicInfo()}${formatMaterialType()}Material: ${title}
 
 View: ${process.env.NEXT_PUBLIC_SITE_URL}/materials/${material.id}
 

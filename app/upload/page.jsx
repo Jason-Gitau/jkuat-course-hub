@@ -15,9 +15,47 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false)
   const [shareMessage, setShareMessage] = useState('')
   const [error, setError] = useState('')
+  const [materialCategory, setMaterialCategory] = useState('')
+  const [weekNumber, setWeekNumber] = useState('')
+  const [yearNumber, setYearNumber] = useState('')
+  const [assignmentNumber, setAssignmentNumber] = useState('')
+
+  // Autocomplete states
+  const [courseSearch, setCourseSearch] = useState('')
+  const [unitSearch, setUnitSearch] = useState('')
+  const [showCourseDropdown, setShowCourseDropdown] = useState(false)
+  const [showUnitDropdown, setShowUnitDropdown] = useState(false)
+  const [filteredCourses, setFilteredCourses] = useState([])
+  const [filteredUnits, setFilteredUnits] = useState([])
+
+  // Create new course/unit states
+  const [showCreateCourse, setShowCreateCourse] = useState(false)
+  const [showCreateUnit, setShowCreateUnit] = useState(false)
+  const [newCourseName, setNewCourseName] = useState('')
+  const [newCourseCode, setNewCourseCode] = useState('')
+  const [newCourseDepartment, setNewCourseDepartment] = useState('')
+  const [newUnitName, setNewUnitName] = useState('')
+  const [newUnitCode, setNewUnitCode] = useState('')
+  const [newUnitYear, setNewUnitYear] = useState('')
+  const [newUnitSemester, setNewUnitSemester] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [materialWeekNumber, setMaterialWeekNumber] = useState('')
   
   const supabase = createClient()
-  
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!event.target.closest('.autocomplete-container')) {
+        setShowCourseDropdown(false)
+        setShowUnitDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Load courses
   useEffect(() => {
     async function loadCourses() {
@@ -25,43 +63,170 @@ export default function UploadPage() {
         .from('courses')
         .select('id, course_code, course_name')
         .order('course_code')
-      
+
       setCourses(data || [])
     }
     loadCourses()
   }, [])
   
+  // Filter courses based on search
+  useEffect(() => {
+    if (!courseSearch) {
+      setFilteredCourses([])
+      return
+    }
+
+    const filtered = courses.filter(course =>
+      course.course_name.toLowerCase().includes(courseSearch.toLowerCase()) ||
+      course.course_code.toLowerCase().includes(courseSearch.toLowerCase())
+    )
+    setFilteredCourses(filtered)
+  }, [courseSearch, courses])
+
+  // Filter units based on search
+  useEffect(() => {
+    if (!unitSearch || !selectedCourse) {
+      setFilteredUnits([])
+      return
+    }
+
+    const filtered = topics.filter(topic =>
+      topic.topic_name.toLowerCase().includes(unitSearch.toLowerCase())
+    )
+    setFilteredUnits(filtered)
+  }, [unitSearch, topics])
+
   // Load topics when course selected
   useEffect(() => {
     if (!selectedCourse) {
       setTopics([])
+      setUnitSearch('')
+      setSelectedTopic('')
       return
     }
-    
+
     async function loadTopics() {
       const { data } = await supabase
         .from('topics')
-        .select('id, topic_name, week_number')
+        .select('id, topic_name, week_number, unit_code, year, semester')
         .eq('course_id', selectedCourse)
-        .order('week_number')
-      
+        .order('year', { ascending: true })
+        .order('semester', { ascending: true })
+
       setTopics(data || [])
     }
     loadTopics()
   }, [selectedCourse])
+
+  // Handlers
+  function handleCourseSelect(course) {
+    setSelectedCourse(course.id)
+    setCourseSearch(`${course.course_code} - ${course.course_name}`)
+    setShowCourseDropdown(false)
+  }
+
+  function handleUnitSelect(topic) {
+    setSelectedTopic(topic.id)
+    const yearLabel = topic.year ? `Year ${topic.year}` : ''
+    const semLabel = topic.semester ? `Sem ${topic.semester}` : ''
+    const unitLabel = topic.unit_code ? `${topic.unit_code} - ${topic.topic_name}` : topic.topic_name
+    const metadata = [yearLabel, semLabel].filter(Boolean).join(', ')
+    setUnitSearch(metadata ? `${unitLabel} (${metadata})` : unitLabel)
+    setShowUnitDropdown(false)
+  }
+
+  async function handleCreateCourse() {
+    if (!newCourseName || !newCourseCode || !newCourseDepartment) {
+      setError('Please fill in all course fields')
+      return
+    }
+
+    setCreating(true)
+    try {
+      const { data, error: createError } = await supabase
+        .from('courses')
+        .insert({
+          course_name: newCourseName,
+          course_code: newCourseCode.toUpperCase(),
+          description: `${newCourseDepartment} course`
+        })
+        .select()
+        .single()
+
+      if (createError) throw createError
+
+      // Add to courses list and select it
+      setCourses([...courses, data])
+      setSelectedCourse(data.id)
+      setCourseSearch(`${data.course_code} - ${data.course_name}`)
+
+      // Reset form
+      setShowCreateCourse(false)
+      setNewCourseName('')
+      setNewCourseCode('')
+      setNewCourseDepartment('')
+      setError('')
+    } catch (err) {
+      setError(`Failed to create course: ${err.message}`)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleCreateUnit() {
+    if (!newUnitName || !newUnitCode || !newUnitYear || !newUnitSemester || !selectedCourse) {
+      setError('Please fill in all unit fields (including year and semester) and select a course first')
+      return
+    }
+
+    setCreating(true)
+    try {
+      const { data, error: createError } = await supabase
+        .from('topics')
+        .insert({
+          course_id: selectedCourse,
+          topic_name: newUnitName,
+          unit_code: newUnitCode.toUpperCase(),
+          year: parseInt(newUnitYear),
+          semester: parseInt(newUnitSemester),
+          week_number: null // Deprecated field, set to null for new units
+        })
+        .select()
+        .single()
+
+      if (createError) throw createError
+
+      // Add to topics list and select it
+      setTopics([...topics, data])
+      setSelectedTopic(data.id)
+      setUnitSearch(`${data.unit_code} - ${data.topic_name} (Year ${data.year}, Sem ${data.semester})`)
+
+      // Reset form
+      setShowCreateUnit(false)
+      setNewUnitName('')
+      setNewUnitCode('')
+      setNewUnitYear('')
+      setNewUnitSemester('')
+      setError('')
+    } catch (err) {
+      setError(`Failed to create unit: ${err.message}`)
+    } finally {
+      setCreating(false)
+    }
+  }
   
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setShareMessage('')
-    
+
     if (!file || !selectedCourse || !title) {
       setError('Please fill in all required fields')
       return
     }
-    
+
     setUploading(true)
-    
+
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -70,6 +235,32 @@ export default function UploadPage() {
       formData.append('title', title)
       formData.append('description', description)
       formData.append('uploader_name', uploaderName)
+
+      // Add week number for weekly materials organization
+      if (materialWeekNumber) {
+        formData.append('week_number', materialWeekNumber)
+      }
+
+      // Add material category if selected
+      if (materialCategory) {
+        formData.append('material_category', materialCategory)
+
+        // Build category metadata based on category type
+        const metadata = {}
+        if (materialCategory === 'weekly_notes' && weekNumber) {
+          metadata.week = parseInt(weekNumber)
+        }
+        if (materialCategory === 'past_paper' && yearNumber) {
+          metadata.year = parseInt(yearNumber)
+        }
+        if (materialCategory === 'assignment' && assignmentNumber) {
+          metadata.assignment_number = parseInt(assignmentNumber)
+        }
+
+        if (Object.keys(metadata).length > 0) {
+          formData.append('category_metadata', JSON.stringify(metadata))
+        }
+      }
       
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -90,6 +281,11 @@ export default function UploadPage() {
       setTitle('')
       setDescription('')
       setSelectedTopic('')
+      setMaterialCategory('')
+      setMaterialWeekNumber('')
+      setWeekNumber('')
+      setYearNumber('')
+      setAssignmentNumber('')
       document.getElementById('file-input').value = ''
       
     } catch (err) {
@@ -117,7 +313,7 @@ export default function UploadPage() {
             ✅ Upload Successful!
           </h2>
           <p className="text-sm text-green-700 mb-4">
-            Your material will be reviewed and published within 24 hours.
+            Your material is now live and visible to all users!
           </p>
           
           <div className="bg-white rounded border border-green-300 p-4 mb-4">
@@ -148,51 +344,314 @@ export default function UploadPage() {
             </div>
           )}
           
-          {/* Course Selection */}
+          {/* Course Selection with Autocomplete */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Course <span className="text-red-500">*</span>
+              1. Course <span className="text-red-500">*</span>
             </label>
-            <select
-              value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required
-            >
-              <option value="">Select a course</option>
-              {courses.map(course => (
-                <option key={course.id} value={course.id}>
-                  {course.course_code} - {course.course_name}
-                </option>
-              ))}
-            </select>
+            <div className="relative autocomplete-container">
+              <input
+                type="text"
+                value={courseSearch}
+                onChange={(e) => {
+                  setCourseSearch(e.target.value)
+                  setShowCourseDropdown(true)
+                  if (!e.target.value) {
+                    setSelectedCourse('')
+                  }
+                }}
+                onFocus={() => setShowCourseDropdown(true)}
+                placeholder="Type to search courses..."
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                required
+              />
+
+              {/* Autocomplete Dropdown */}
+              {showCourseDropdown && courseSearch && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {filteredCourses.length > 0 ? (
+                    <>
+                      {filteredCourses.map(course => (
+                        <button
+                          key={course.id}
+                          type="button"
+                          onClick={() => handleCourseSelect(course)}
+                          className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-100"
+                        >
+                          <div className="font-medium">{course.course_code}</div>
+                          <div className="text-sm text-gray-600">{course.course_name}</div>
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="p-4 text-center">
+                      <p className="text-gray-500 mb-3">No courses found</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCreateCourse(true)
+                          setShowCourseDropdown(false)
+                        }}
+                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm"
+                      >
+                        + Create New Course
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedCourse && (
+              <p className="text-sm text-green-600 mt-1">✓ Course selected</p>
+            )}
           </div>
+
+          {/* Create New Course Modal */}
+          {showCreateCourse && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 className="text-lg font-bold mb-4">Create New Course</h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Course Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newCourseCode}
+                      onChange={(e) => setNewCourseCode(e.target.value)}
+                      placeholder="e.g., CVE 201"
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Course Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newCourseName}
+                      onChange={(e) => setNewCourseName(e.target.value)}
+                      placeholder="e.g., Structural Analysis I"
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Department <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newCourseDepartment}
+                      onChange={(e) => setNewCourseDepartment(e.target.value)}
+                      placeholder="e.g., Civil Engineering"
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={handleCreateCourse}
+                    disabled={creating}
+                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
+                  >
+                    {creating ? 'Creating...' : 'Create Course'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateCourse(false)
+                      setNewCourseName('')
+                      setNewCourseCode('')
+                      setNewCourseDepartment('')
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
-          {/* Topic Selection */}
-          {topics.length > 0 && (
+          {/* Unit/Topic Selection with Autocomplete */}
+          {selectedCourse && (
             <div>
               <label className="block text-sm font-medium mb-2">
-                Topic/Week (optional)
+                2. Unit (optional)
               </label>
-              <select
-                value={selectedTopic}
-                onChange={(e) => setSelectedTopic(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              >
-                <option value="">General / Not specific to a topic</option>
-                {topics.map(topic => (
-                  <option key={topic.id} value={topic.id}>
-                    Week {topic.week_number}: {topic.topic_name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative autocomplete-container">
+                <input
+                  type="text"
+                  value={unitSearch}
+                  onChange={(e) => {
+                    setUnitSearch(e.target.value)
+                    setShowUnitDropdown(true)
+                    if (!e.target.value) {
+                      setSelectedTopic('')
+                    }
+                  }}
+                  onFocus={() => setShowUnitDropdown(true)}
+                  placeholder="Type to search units or leave blank for general..."
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+
+                {/* Autocomplete Dropdown */}
+                {showUnitDropdown && unitSearch && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredUnits.length > 0 ? (
+                      <>
+                        {filteredUnits.map(topic => (
+                          <button
+                            key={topic.id}
+                            type="button"
+                            onClick={() => handleUnitSelect(topic)}
+                            className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-100"
+                          >
+                            <div className="font-medium">
+                              {topic.unit_code ? `${topic.unit_code} - ${topic.topic_name}` : topic.topic_name}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {topic.year && topic.semester ? `Year ${topic.year}, Semester ${topic.semester}` : `Week ${topic.week_number || 'N/A'}`}
+                            </div>
+                          </button>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="p-4 text-center">
+                        <p className="text-gray-500 mb-3">No units found</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCreateUnit(true)
+                            setShowUnitDropdown(false)
+                          }}
+                          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm"
+                        >
+                          + Create New Unit
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {selectedTopic && (
+                <p className="text-sm text-green-600 mt-1">✓ Unit selected</p>
+              )}
+              {!selectedTopic && !unitSearch && (
+                <p className="text-sm text-gray-500 mt-1">Leaving blank will mark as general material</p>
+              )}
+            </div>
+          )}
+
+          {/* Create New Unit Modal */}
+          {showCreateUnit && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 className="text-lg font-bold mb-4">Create New Unit</h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Unit Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newUnitCode}
+                      onChange={(e) => setNewUnitCode(e.target.value)}
+                      placeholder="e.g., CVE 2101"
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Unit Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newUnitName}
+                      onChange={(e) => setNewUnitName(e.target.value)}
+                      placeholder="e.g., Calculus I"
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Year <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={newUnitYear}
+                      onChange={(e) => setNewUnitYear(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    >
+                      <option value="">Select year...</option>
+                      <option value="1">1st Year</option>
+                      <option value="2">2nd Year</option>
+                      <option value="3">3rd Year</option>
+                      <option value="4">4th Year</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Semester <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={newUnitSemester}
+                      onChange={(e) => setNewUnitSemester(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    >
+                      <option value="">Select semester...</option>
+                      <option value="1">1st Semester</option>
+                      <option value="2">2nd Semester</option>
+                    </select>
+                  </div>
+
+                  <p className="text-sm text-gray-600">
+                    This unit will be added to the selected course
+                  </p>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={handleCreateUnit}
+                    disabled={creating}
+                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
+                  >
+                    {creating ? 'Creating...' : 'Create Unit'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateUnit(false)
+                      setNewUnitName('')
+                      setNewUnitCode('')
+                      setNewUnitYear('')
+                      setNewUnitSemester('')
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           
           {/* Material Title */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Material Title <span className="text-red-500">*</span>
+              3. Material Title <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -202,6 +661,162 @@ export default function UploadPage() {
               className="w-full border border-gray-300 rounded px-3 py-2"
               required
             />
+          </div>
+
+          {/* Week Number for Material Organization */}
+          {selectedTopic && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Week Number (optional)
+              </label>
+              <select
+                value={materialWeekNumber}
+                onChange={(e) => setMaterialWeekNumber(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">Select week (or leave blank for general materials)...</option>
+                {Array.from({ length: 15 }, (_, i) => i + 1).map(week => (
+                  <option key={week} value={week}>Week {week}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Organize materials by week within the semester. Leave blank for past papers or general materials.
+              </p>
+            </div>
+          )}
+
+          {/* Material Type (Optional) */}
+          <div>
+            <label className="block text-sm font-medium mb-3">
+              Material Type (optional)
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value=""
+                  checked={materialCategory === ''}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Not specified</span>
+              </label>
+
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value="complete_notes"
+                  checked={materialCategory === 'complete_notes'}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Complete Semester Notes</span>
+              </label>
+
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value="weekly_notes"
+                  checked={materialCategory === 'weekly_notes'}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Weekly Notes</span>
+              </label>
+
+              {materialCategory === 'weekly_notes' && (
+                <div className="ml-7 mt-2">
+                  <input
+                    type="number"
+                    placeholder="Week number (e.g., 3)"
+                    value={weekNumber}
+                    onChange={(e) => setWeekNumber(e.target.value)}
+                    min="1"
+                    max="15"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value="past_paper"
+                  checked={materialCategory === 'past_paper'}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Past Paper</span>
+              </label>
+
+              {materialCategory === 'past_paper' && (
+                <div className="ml-7 mt-2">
+                  <input
+                    type="number"
+                    placeholder="Year (e.g., 2023)"
+                    value={yearNumber}
+                    onChange={(e) => setYearNumber(e.target.value)}
+                    min="2000"
+                    max={new Date().getFullYear()}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value="assignment"
+                  checked={materialCategory === 'assignment'}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Assignment</span>
+              </label>
+
+              {materialCategory === 'assignment' && (
+                <div className="ml-7 mt-2">
+                  <input
+                    type="number"
+                    placeholder="Assignment number (e.g., 1)"
+                    value={assignmentNumber}
+                    onChange={(e) => setAssignmentNumber(e.target.value)}
+                    min="1"
+                    max="10"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value="lab_guide"
+                  checked={materialCategory === 'lab_guide'}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Lab Guide</span>
+              </label>
+
+              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="materialCategory"
+                  value="other"
+                  checked={materialCategory === 'other'}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span>Other</span>
+              </label>
+            </div>
           </div>
           
           {/* Description */}
@@ -273,9 +888,9 @@ export default function UploadPage() {
         <h3 className="font-semibold mb-2">Guidelines:</h3>
         <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
           <li>Only upload materials you have permission to share</li>
-          <li>Materials are reviewed before publishing (usually within 24 hours)</li>
+          <li>Materials are published immediately and visible to everyone</li>
           <li>Make titles clear and descriptive</li>
-          <li>Tag with correct course and topic for easy discovery</li>
+          <li>Tag with correct course, unit, and week for easy discovery</li>
         </ul>
       </div>
     </div>
