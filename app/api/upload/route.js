@@ -16,7 +16,7 @@ export async function POST(req) {
 
   try {
     const formData = await req.formData()
-    
+
     // Extract form data
     const file = formData.get('file')
     const courseId = formData.get('course_id')
@@ -27,6 +27,38 @@ export async function POST(req) {
     const materialCategory = formData.get('material_category')
     const categoryMetadata = formData.get('category_metadata')
     const weekNumber = formData.get('week_number')
+
+    // Get authenticated user from the request
+    const authHeader = req.headers.get('cookie')
+    let userId = null
+    let uploaderYear = null
+    let uploaderCourseId = null
+
+    if (authHeader) {
+      // Create client with cookies for auth
+      const userSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+
+      const { data: { user } } = await userSupabase.auth.getUser()
+
+      if (user) {
+        userId = user.id
+
+        // Get user's profile for year and course
+        const { data: profile } = await userSupabase
+          .from('profiles')
+          .select('year_of_study, course_id')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          uploaderYear = profile.year_of_study
+          uploaderCourseId = profile.course_id
+        }
+      }
+    }
     
     // Validate
     if (!file || !courseId || !title) {
@@ -93,7 +125,7 @@ export async function POST(req) {
       }
     }
 
-    // Save metadata to database
+    // Save metadata to database and fetch course/topic data in one query using JOIN
     const { data: material, error: dbError } = await supabase
       .from('materials')
       .insert({
@@ -109,11 +141,30 @@ export async function POST(req) {
         status: 'approved', // TESTING: Auto-approve materials (bypass admin approval)
         material_category: materialCategory || null,
         category_metadata: parsedMetadata,
-        week_number: weekNumber ? parseInt(weekNumber) : null
+        week_number: weekNumber ? parseInt(weekNumber) : null,
+        user_id: userId,
+        uploader_year: uploaderYear,
+        uploader_course_id: uploaderCourseId
       })
-      .select('id, title')
+      .select(`
+        id,
+        title,
+        material_category,
+        category_metadata,
+        week_number,
+        courses:course_id (
+          course_name,
+          course_code
+        ),
+        topics:topic_id (
+          topic_name,
+          unit_code,
+          year,
+          semester
+        )
+      `)
       .single()
-    
+
     if (dbError) {
       console.error('Database error:', dbError)
       return NextResponse.json(
@@ -121,71 +172,21 @@ export async function POST(req) {
         { status: 500 }
       )
     }
-    
-    // Get course name for shareable message
-    const { data: course } = await supabase
-      .from('courses')
-      .select('course_name, course_code')
-      .eq('id', courseId)
-      .single()
-    
-    const { data: topic } = topicId
-      ? await supabase.from('topics').select('topic_name, unit_code, year, semester').eq('id', topicId).single()
-      : { data: null }
 
-    // Format material type for share message
-    const formatMaterialType = () => {
-      if (!materialCategory) return ''
-
-      const typeLabels = {
-        'complete_notes': 'Complete Semester Notes',
-        'weekly_notes': 'Weekly Notes',
-        'past_paper': 'Past Paper',
-        'assignment': 'Assignment',
-        'lab_guide': 'Lab Guide',
-        'other': 'Material'
-      }
-
-      let typeStr = typeLabels[materialCategory] || 'Material'
-
-      if (parsedMetadata) {
-        if (parsedMetadata.week) typeStr += ` (Week ${parsedMetadata.week})`
-        if (parsedMetadata.year) typeStr += ` (${parsedMetadata.year})`
-        if (parsedMetadata.assignment_number) typeStr += ` #${parsedMetadata.assignment_number}`
-      }
-
-      return `Type: ${typeStr}\n`
-    }
-
-    // Format topic/unit information
-    const formatTopicInfo = () => {
-      if (!topic) return ''
-
-      const unitLabel = topic.unit_code ? `${topic.unit_code} - ${topic.topic_name}` : topic.topic_name
-      const yearSemInfo = topic.year && topic.semester
-        ? ` (Year ${topic.year}, Semester ${topic.semester})`
-        : ''
-      const weekInfo = weekNumber ? `\nWeek: ${weekNumber}` : ''
-
-      return `Unit: ${unitLabel}${yearSemInfo}${weekInfo}\n`
-    }
-
-    // Generate shareable message
-    const shareMessage = `✅ New material uploaded!
-
-Course: ${course.course_name} (${course.course_code})
-${formatTopicInfo()}${formatMaterialType()}Material: ${title}
-
-View: ${process.env.NEXT_PUBLIC_SITE_URL}/materials/${material.id}
-
-All materials: ${process.env.NEXT_PUBLIC_SITE_URL}/courses/${courseId}
-
-Uploaded by: ${uploaderName}`
-    
+    // Return material data for client-side processing
+    // Client will generate the share message to avoid blocking the response
     return NextResponse.json({
       success: true,
-      materialId: material.id,
-      shareMessage
+      material: {
+        id: material.id,
+        title: material.title,
+        material_category: material.material_category,
+        category_metadata: material.category_metadata,
+        week_number: material.week_number,
+        course: material.courses,
+        topic: material.topics,
+        uploaded_by: uploaderName
+      }
     })
     
   } catch (error) {

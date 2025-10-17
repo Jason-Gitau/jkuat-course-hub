@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useUser } from '@/lib/auth/useUser'
 
 export default function UploadPage() {
+  const { user, profile, loading: authLoading } = useUser()
   const [courses, setCourses] = useState([])
   const [topics, setTopics] = useState([])
   const [selectedCourse, setSelectedCourse] = useState('')
@@ -13,6 +15,7 @@ export default function UploadPage() {
   const [uploaderName, setUploaderName] = useState('')
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [shareMessage, setShareMessage] = useState('')
   const [error, setError] = useState('')
   const [materialCategory, setMaterialCategory] = useState('')
@@ -40,8 +43,24 @@ export default function UploadPage() {
   const [newUnitSemester, setNewUnitSemester] = useState('')
   const [creating, setCreating] = useState(false)
   const [materialWeekNumber, setMaterialWeekNumber] = useState('')
-  
+
   const supabase = createClient()
+
+  // Pre-fill form with user's profile data
+  useEffect(() => {
+    if (profile) {
+      // Set uploader name from profile
+      if (profile.full_name) {
+        setUploaderName(profile.full_name)
+      }
+
+      // Pre-select user's course if they have one
+      if (profile.course_id && profile.courses) {
+        setSelectedCourse(profile.course_id)
+        setCourseSearch(`${profile.courses.course_code} - ${profile.courses.course_name}`)
+      }
+    }
+  }, [profile])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -135,6 +154,62 @@ export default function UploadPage() {
     setShowUnitDropdown(false)
   }
 
+  // Generate share message client-side for faster UI response
+  function generateShareMessage(materialData) {
+    const { id, title, material_category, category_metadata, week_number, course, topic, uploaded_by } = materialData
+
+    // Format material type
+    const formatMaterialType = () => {
+      if (!material_category) return ''
+
+      const typeLabels = {
+        'complete_notes': 'Complete Semester Notes',
+        'weekly_notes': 'Weekly Notes',
+        'past_paper': 'Past Paper',
+        'assignment': 'Assignment',
+        'lab_guide': 'Lab Guide',
+        'other': 'Material'
+      }
+
+      let typeStr = typeLabels[material_category] || 'Material'
+
+      if (category_metadata) {
+        if (category_metadata.week) typeStr += ` (Week ${category_metadata.week})`
+        if (category_metadata.year) typeStr += ` (${category_metadata.year})`
+        if (category_metadata.assignment_number) typeStr += ` #${category_metadata.assignment_number}`
+      }
+
+      return `Type: ${typeStr}\n`
+    }
+
+    // Format topic/unit information
+    const formatTopicInfo = () => {
+      if (!topic) return ''
+
+      const unitLabel = topic.unit_code ? `${topic.unit_code} - ${topic.topic_name}` : topic.topic_name
+      const yearSemInfo = topic.year && topic.semester
+        ? ` (Year ${topic.year}, Semester ${topic.semester})`
+        : ''
+      const weekInfo = week_number ? `\nWeek: ${week_number}` : ''
+
+      return `Unit: ${unitLabel}${yearSemInfo}${weekInfo}\n`
+    }
+
+    const siteUrl = window.location.origin
+    const uploaderText = uploaded_by || 'Anonymous'
+
+    return `✅ New material uploaded!
+
+Course: ${course.course_name} (${course.course_code})
+${formatTopicInfo()}${formatMaterialType()}Material: ${title}
+
+View: ${siteUrl}/materials/${id}
+
+All materials: ${siteUrl}/courses/${selectedCourse}
+
+Uploaded by: ${uploaderText}`
+  }
+
   async function handleCreateCourse() {
     if (!newCourseName || !newCourseCode || !newCourseDepartment) {
       setError('Please fill in all course fields')
@@ -219,6 +294,7 @@ export default function UploadPage() {
     e.preventDefault()
     setError('')
     setShareMessage('')
+    setUploadProgress(0)
 
     if (!file || !selectedCourse || !title) {
       setError('Please fill in all required fields')
@@ -261,21 +337,48 @@ export default function UploadPage() {
           formData.append('category_metadata', JSON.stringify(metadata))
         }
       }
-      
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
+
+      // Show initial progress
+      setUploadProgress(10)
+
+      // Create XMLHttpRequest for upload progress tracking
+      const xhr = new XMLHttpRequest()
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 90) // Reserve 10% for processing
+          setUploadProgress(percentComplete)
+        }
       })
-      
-      const result = await response.json()
-      
-      if (!response.ok) {
+
+      // Handle completion
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress(100)
+            resolve(JSON.parse(xhr.responseText))
+          } else {
+            reject(new Error(JSON.parse(xhr.responseText).error || 'Upload failed'))
+          }
+        })
+        xhr.addEventListener('error', () => reject(new Error('Network error')))
+      })
+
+      // Send request
+      xhr.open('POST', '/api/upload')
+      xhr.send(formData)
+
+      const result = await uploadPromise
+
+      if (!result.success) {
         throw new Error(result.error || 'Upload failed')
       }
-      
-      // Success!
-      setShareMessage(result.shareMessage)
-      
+
+      // Generate share message client-side (instant, non-blocking)
+      const message = generateShareMessage(result.material)
+      setShareMessage(message)
+
       // Reset form
       setFile(null)
       setTitle('')
@@ -286,10 +389,12 @@ export default function UploadPage() {
       setWeekNumber('')
       setYearNumber('')
       setAssignmentNumber('')
+      setUploadProgress(0)
       document.getElementById('file-input').value = ''
-      
+
     } catch (err) {
       setError(err.message)
+      setUploadProgress(0)
     } finally {
       setUploading(false)
     }
@@ -304,9 +409,31 @@ export default function UploadPage() {
     <div className="max-w-2xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-2">Upload Course Material</h1>
       <p className="text-gray-600 mb-6">
-        Share materials with your classmates. Uploads are reviewed before publishing.
+        Share materials with your classmates. Uploads are published immediately.
       </p>
-      
+
+      {/* User Profile Banner */}
+      {profile && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+              {profile.full_name?.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">{profile.full_name}</p>
+              {profile.courses && (
+                <p className="text-sm text-blue-700">
+                  {profile.courses.course_name} • Year {profile.year_of_study}
+                </p>
+              )}
+              <p className="text-xs text-gray-600 mt-1">
+                Your course and name will be pre-filled below
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {shareMessage ? (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
           <h2 className="text-lg font-semibold text-green-800 mb-2">
@@ -873,11 +1000,26 @@ export default function UploadPage() {
             </p>
           </div>
           
+          {/* Upload Progress Bar */}
+          {uploading && uploadProgress > 0 && (
+            <div className="space-y-2">
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <p className="text-sm text-center text-gray-600">
+                {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : 'Processing...'}
+              </p>
+            </div>
+          )}
+
           {/* Submit Button */}
           <button
             type="submit"
             disabled={uploading}
-            className="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {uploading ? 'Uploading...' : 'Upload Material'}
           </button>
