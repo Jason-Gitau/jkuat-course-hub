@@ -30,7 +30,7 @@ export default function CoursePage() {
       // Load course info
       const { data: courseData } = await supabase
         .from('courses')
-        .select('id, course_code, course_name, description')
+        .select('id, course_name, description, department')
         .eq('id', courseId)
         .single()
 
@@ -241,8 +241,13 @@ export default function CoursePage() {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">
-              {course.course_code}: {course.course_name}
+              {course.course_name}
             </h1>
+            {course.department && (
+              <div className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold mb-2">
+                {course.department}
+              </div>
+            )}
             {course.description && (
               <p className="text-gray-600 mb-2">{course.description}</p>
             )}

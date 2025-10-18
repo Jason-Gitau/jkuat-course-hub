@@ -21,10 +21,10 @@ export default function ChatPage() {
     async function loadCourse() {
       const { data } = await supabase
         .from('courses')
-        .select('course_code, course_name')
+        .select('course_name, department')
         .eq('id', courseId)
         .single()
-      
+
       setCourse(data)
     }
     loadCourse()
@@ -88,7 +88,7 @@ export default function ChatPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4">
         <h1 className="text-xl font-semibold">
-          {course ? `${course.course_code} AI Tutor` : 'AI Tutor'}
+          {course ? `${course.course_name} AI Tutor` : 'AI Tutor'}
         </h1>
         <p className="text-sm text-gray-600">
           Ask questions about course materials

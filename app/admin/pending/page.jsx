@@ -20,7 +20,7 @@ export default function AdminPendingPage() {
       .from('materials')
       .select(`
         *,
-        courses (course_code, course_name),
+        courses (course_name, department),
         topics (topic_name, week_number)
       `)
       .eq('status', 'pending')
@@ -120,7 +120,12 @@ export default function AdminPendingPage() {
                   <div className="text-sm text-gray-600 space-y-1">
                     <p>
                       <span className="font-medium">Course:</span>{' '}
-                      {material.courses.course_code} - {material.courses.course_name}
+                      {material.courses.course_name}
+                      {material.courses.department && (
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                          {material.courses.department}
+                        </span>
+                      )}
                     </p>
                     {material.topics && (
                       <p>
