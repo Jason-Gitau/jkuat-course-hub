@@ -55,7 +55,7 @@ export function UserProvider({ children }) {
           courses:course_id (
             id,
             course_name,
-            course_code,
+            department,
             description
           )
         `)

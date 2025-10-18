@@ -180,7 +180,7 @@ export default function OnboardingPage() {
                 <option value="">Select your course...</option>
                 {courses.map(course => (
                   <option key={course.id} value={course.id}>
-                    {course.course_code} - {course.course_name}
+                    {course.course_name}
                   </option>
                 ))}
               </select>

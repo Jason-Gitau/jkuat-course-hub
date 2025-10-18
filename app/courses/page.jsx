@@ -23,8 +23,8 @@ export default function CoursesPage() {
         const [{ data: courses, error: coursesError }, { data: materials, error: materialsError }] = await Promise.all([
           supabase
             .from('courses')
-            .select('id, course_code, course_name, description')
-            .order('course_code'),
+            .select('id, course_name, description, department')
+            .order('course_name'),
           supabase
             .from('materials')
             .select('course_id')
@@ -71,8 +71,8 @@ export default function CoursesPage() {
   const filteredCourses = courses.filter(course => {
     const query = searchQuery.toLowerCase()
     return (
-      course.course_code.toLowerCase().includes(query) ||
-      course.course_name.toLowerCase().includes(query)
+      course.course_name.toLowerCase().includes(query) ||
+      (course.department && course.department.toLowerCase().includes(query))
     )
   })
 
@@ -103,7 +103,7 @@ export default function CoursesPage() {
         {/* Search Bar */}
         <input
           type="text"
-          placeholder="Search courses by name or code..."
+          placeholder="Search courses by name or department..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full max-w-md border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -145,10 +145,12 @@ export default function CoursesPage() {
               href={`/courses/${course.id}`}
               className="block bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-blue-300 transition-all group"
             >
-              {/* Course Code Badge */}
-              <div className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold mb-3">
-                {course.course_code}
-              </div>
+              {/* Department Badge */}
+              {course.department && (
+                <div className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold mb-3">
+                  {course.department}
+                </div>
+              )}
 
               {/* Course Name */}
               <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">

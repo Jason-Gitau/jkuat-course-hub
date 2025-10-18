@@ -35,7 +35,6 @@ export default function UploadPage() {
   const [showCreateCourse, setShowCreateCourse] = useState(false)
   const [showCreateUnit, setShowCreateUnit] = useState(false)
   const [newCourseName, setNewCourseName] = useState('')
-  const [newCourseCode, setNewCourseCode] = useState('')
   const [newCourseDepartment, setNewCourseDepartment] = useState('')
   const [newUnitName, setNewUnitName] = useState('')
   const [newUnitCode, setNewUnitCode] = useState('')
@@ -57,7 +56,7 @@ export default function UploadPage() {
       // Pre-select user's course if they have one
       if (profile.course_id && profile.courses) {
         setSelectedCourse(profile.course_id)
-        setCourseSearch(`${profile.courses.course_code} - ${profile.courses.course_name}`)
+        setCourseSearch(profile.courses.course_name)
       }
     }
   }, [profile])
@@ -80,8 +79,8 @@ export default function UploadPage() {
     async function loadCourses() {
       const { data } = await supabase
         .from('courses')
-        .select('id, course_code, course_name')
-        .order('course_code')
+        .select('id, course_name, department')
+        .order('course_name')
 
       setCourses(data || [])
     }
@@ -97,7 +96,7 @@ export default function UploadPage() {
 
     const filtered = courses.filter(course =>
       course.course_name.toLowerCase().includes(courseSearch.toLowerCase()) ||
-      course.course_code.toLowerCase().includes(courseSearch.toLowerCase())
+      (course.department && course.department.toLowerCase().includes(courseSearch.toLowerCase()))
     )
     setFilteredCourses(filtered)
   }, [courseSearch, courses])
@@ -140,7 +139,7 @@ export default function UploadPage() {
   // Handlers
   function handleCourseSelect(course) {
     setSelectedCourse(course.id)
-    setCourseSearch(`${course.course_code} - ${course.course_name}`)
+    setCourseSearch(course.course_name)
     setShowCourseDropdown(false)
   }
 
@@ -200,7 +199,7 @@ export default function UploadPage() {
 
     return `✅ New material uploaded!
 
-Course: ${course.course_name} (${course.course_code})
+Course: ${course.course_name}
 ${formatTopicInfo()}${formatMaterialType()}Material: ${title}
 
 View: ${siteUrl}/materials/${id}
@@ -211,19 +210,19 @@ Uploaded by: ${uploaderText}`
   }
 
   async function handleCreateCourse() {
-    if (!newCourseName || !newCourseCode || !newCourseDepartment) {
+    if (!newCourseName || !newCourseDepartment) {
       setError('Please fill in all course fields')
       return
     }
 
     setCreating(true)
     try {
-      const { data, error: createError } = await supabase
+      const { data, error: createError} = await supabase
         .from('courses')
         .insert({
           course_name: newCourseName,
-          course_code: newCourseCode.toUpperCase(),
-          description: `${newCourseDepartment} course`
+          department: newCourseDepartment,
+          description: `${newCourseDepartment} program`
         })
         .select()
         .single()
@@ -233,12 +232,11 @@ Uploaded by: ${uploaderText}`
       // Add to courses list and select it
       setCourses([...courses, data])
       setSelectedCourse(data.id)
-      setCourseSearch(`${data.course_code} - ${data.course_name}`)
+      setCourseSearch(data.course_name)
 
       // Reset form
       setShowCreateCourse(false)
       setNewCourseName('')
-      setNewCourseCode('')
       setNewCourseDepartment('')
       setError('')
     } catch (err) {
@@ -505,8 +503,8 @@ Uploaded by: ${uploaderText}`
                           onClick={() => handleCourseSelect(course)}
                           className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-100"
                         >
-                          <div className="font-medium">{course.course_code}</div>
-                          <div className="text-sm text-gray-600">{course.course_name}</div>
+                          <div className="font-medium">{course.course_name}</div>
+                          <div className="text-sm text-gray-600">{course.department}</div>
                         </button>
                       ))}
                     </>
@@ -543,28 +541,18 @@ Uploaded by: ${uploaderText}`
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      Course Code <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newCourseCode}
-                      onChange={(e) => setNewCourseCode(e.target.value)}
-                      placeholder="e.g., CVE 201"
-                      className="w-full border border-gray-300 rounded px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
                       Course Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={newCourseName}
                       onChange={(e) => setNewCourseName(e.target.value)}
-                      placeholder="e.g., Structural Analysis I"
+                      placeholder="e.g., Bachelor of Science in Civil Engineering"
                       className="w-full border border-gray-300 rounded px-3 py-2"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter the full program name (e.g., BSc Computer Science, Diploma in Business)
+                    </p>
                   </div>
 
                   <div>
@@ -578,6 +566,9 @@ Uploaded by: ${uploaderText}`
                       placeholder="e.g., Civil Engineering"
                       className="w-full border border-gray-300 rounded px-3 py-2"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Department or school offering this program
+                    </p>
                   </div>
                 </div>
 
@@ -595,7 +586,6 @@ Uploaded by: ${uploaderText}`
                     onClick={() => {
                       setShowCreateCourse(false)
                       setNewCourseName('')
-                      setNewCourseCode('')
                       setNewCourseDepartment('')
                     }}
                     className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"

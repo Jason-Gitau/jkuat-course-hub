@@ -105,7 +105,7 @@ export default function Navigation() {
                     <div className="hidden lg:block text-left mr-1">
                       <div className="text-xs font-medium text-gray-900">{profile.full_name}</div>
                       <div className="text-xs text-gray-500">
-                        {profile.courses.course_code} • Year {profile.year_of_study}
+                        Year {profile.year_of_study}
                       </div>
                     </div>
                   )}
