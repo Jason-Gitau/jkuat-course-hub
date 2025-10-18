@@ -18,46 +18,45 @@ export default function CoursesPage() {
         setLoading(true)
         setError(null)
 
-        // Optimized: Single query with materialsCount aggregation
-        // This eliminates the N+1 problem by using a subquery count
-        const { data: coursesData, error: coursesError } = await supabase
-          .rpc('get_courses_with_material_counts')
+        // Optimized: Get all courses and materials in two parallel queries
+        // This eliminates the N+1 problem (was 50+ queries, now just 2)
+        const [{ data: courses, error: coursesError }, { data: materials, error: materialsError }] = await Promise.all([
+          supabase
+            .from('courses')
+            .select('id, course_code, course_name, description')
+            .order('course_code'),
+          supabase
+            .from('materials')
+            .select('course_id')
+            .eq('status', 'approved')
+        ])
 
-        // Fallback to manual approach if RPC doesn't exist
-        if (coursesError?.code === '42883') {
-          console.log('RPC not found, using JOIN approach...')
-
-          // Alternative: Get all courses and materials in two queries
-          const [{ data: courses }, { data: materials }] = await Promise.all([
-            supabase
-              .from('courses')
-              .select('id, course_code, course_name, description')
-              .order('course_code'),
-            supabase
-              .from('materials')
-              .select('course_id')
-              .eq('status', 'approved')
-          ])
-
-          // Count materials per course in memory (fast)
-          const materialCounts = {}
-          materials?.forEach(m => {
-            materialCounts[m.course_id] = (materialCounts[m.course_id] || 0) + 1
-          })
-
-          const coursesWithCounts = courses?.map(course => ({
-            ...course,
-            materialsCount: materialCounts[course.id] || 0
-          })) || []
-
-          setCourses(coursesWithCounts)
-        } else if (coursesError) {
+        if (coursesError) {
           console.error('Error loading courses:', coursesError)
           setError(`Failed to load courses: ${coursesError.message}`)
-        } else {
-          setCourses(coursesData || [])
+          setLoading(false)
+          return
         }
 
+        if (materialsError) {
+          console.error('Error loading materials:', materialsError)
+          setError(`Failed to load materials: ${materialsError.message}`)
+          setLoading(false)
+          return
+        }
+
+        // Count materials per course in memory (instant - no DB query needed)
+        const materialCounts = {}
+        materials?.forEach(m => {
+          materialCounts[m.course_id] = (materialCounts[m.course_id] || 0) + 1
+        })
+
+        const coursesWithCounts = courses?.map(course => ({
+          ...course,
+          materialsCount: materialCounts[course.id] || 0
+        })) || []
+
+        setCourses(coursesWithCounts)
         setLoading(false)
       } catch (err) {
         console.error('Unexpected error:', err)
