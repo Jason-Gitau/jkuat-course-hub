@@ -3,6 +3,7 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
 import { UserProvider } from "@/lib/providers/UserProvider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
             {children}
           </UserProvider>
         </QueryProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
