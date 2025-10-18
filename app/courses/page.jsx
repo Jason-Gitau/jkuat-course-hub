@@ -18,49 +18,46 @@ export default function CoursesPage() {
         setLoading(true)
         setError(null)
 
-        console.log('Fetching courses from Supabase...')
-
-        // First get all courses
+        // Optimized: Single query with materialsCount aggregation
+        // This eliminates the N+1 problem by using a subquery count
         const { data: coursesData, error: coursesError } = await supabase
-          .from('courses')
-          .select('id, course_code, course_name, description')
-          .order('course_code')
+          .rpc('get_courses_with_material_counts')
 
-        console.log('Courses data:', coursesData)
-        console.log('Courses error:', coursesError)
+        // Fallback to manual approach if RPC doesn't exist
+        if (coursesError?.code === '42883') {
+          console.log('RPC not found, using JOIN approach...')
 
-        if (coursesError) {
+          // Alternative: Get all courses and materials in two queries
+          const [{ data: courses }, { data: materials }] = await Promise.all([
+            supabase
+              .from('courses')
+              .select('id, course_code, course_name, description')
+              .order('course_code'),
+            supabase
+              .from('materials')
+              .select('course_id')
+              .eq('status', 'approved')
+          ])
+
+          // Count materials per course in memory (fast)
+          const materialCounts = {}
+          materials?.forEach(m => {
+            materialCounts[m.course_id] = (materialCounts[m.course_id] || 0) + 1
+          })
+
+          const coursesWithCounts = courses?.map(course => ({
+            ...course,
+            materialsCount: materialCounts[course.id] || 0
+          })) || []
+
+          setCourses(coursesWithCounts)
+        } else if (coursesError) {
           console.error('Error loading courses:', coursesError)
           setError(`Failed to load courses: ${coursesError.message}`)
-          setLoading(false)
-          return
+        } else {
+          setCourses(coursesData || [])
         }
 
-        if (!coursesData || coursesData.length === 0) {
-          console.log('No courses found in database')
-          setCourses([])
-          setLoading(false)
-          return
-        }
-
-        // Then get materials count for each course
-        const coursesWithCounts = await Promise.all(
-          coursesData.map(async (course) => {
-            const { count } = await supabase
-              .from('materials')
-              .select('*', { count: 'exact', head: true })
-              .eq('course_id', course.id)
-              .eq('status', 'approved')
-
-            return {
-              ...course,
-              materialsCount: count || 0
-            }
-          })
-        )
-
-        console.log('Courses with counts:', coursesWithCounts)
-        setCourses(coursesWithCounts)
         setLoading(false)
       } catch (err) {
         console.error('Unexpected error:', err)

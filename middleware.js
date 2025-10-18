@@ -31,16 +31,24 @@ export async function middleware(request) {
     }
   )
 
-  // Refresh session if expired
-  const { data: { user } } = await supabase.auth.getUser()
-
+  // Optimize: Only check auth for routes that need it
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
   const isProtectedRoute =
     request.nextUrl.pathname.startsWith('/upload') ||
     request.nextUrl.pathname.startsWith('/admin') ||
     request.nextUrl.pathname.startsWith('/profile')
 
-  // Redirect authenticated users away from auth pages
+  const needsAuthCheck = isAuthPage || isProtectedRoute
+
+  // Skip auth check for public pages (courses, home, etc.)
+  if (!needsAuthCheck) {
+    return response
+  }
+
+  // Only call getUser when necessary
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Redirect authenticated users away from auth pages (except onboarding)
   if (isAuthPage && user && request.nextUrl.pathname !== '/auth/onboarding') {
     return NextResponse.redirect(new URL('/', request.url))
   }
@@ -52,16 +60,18 @@ export async function middleware(request) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Check if user has completed onboarding
-  if (user && !isAuthPage) {
+  // Optimize: Only check profile for authenticated users on protected routes
+  // Profile check is now done client-side in UserProvider for better caching
+  // Only check here if accessing protected routes to force onboarding
+  if (user && isProtectedRoute && request.nextUrl.pathname !== '/auth/onboarding') {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id')
       .eq('id', user.id)
       .single()
 
-    // If no profile exists and not already on onboarding page
-    if ((!profile || error?.code === 'PGRST116') && request.nextUrl.pathname !== '/auth/onboarding') {
+    // If no profile exists, redirect to onboarding
+    if (!profile || error?.code === 'PGRST116') {
       return NextResponse.redirect(new URL('/auth/onboarding', request.url))
     }
   }

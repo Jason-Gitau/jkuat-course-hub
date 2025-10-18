@@ -23,8 +23,17 @@ export default function OnboardingPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Get current user
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
+        // Optimized: Fetch user and courses in parallel
+        const [
+          { data: { user: currentUser }, error: userError },
+          { data: coursesData, error: coursesError }
+        ] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from('courses')
+            .select('id, course_name, course_code')
+            .order('course_name')
+        ])
 
         if (userError || !currentUser) {
           router.push('/auth/login')
@@ -38,12 +47,6 @@ export default function OnboardingPage() {
           ...prev,
           full_name: currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '',
         }))
-
-        // Load courses
-        const { data: coursesData, error: coursesError } = await supabase
-          .from('courses')
-          .select('id, course_name, course_code')
-          .order('course_name')
 
         if (coursesError) throw coursesError
 
