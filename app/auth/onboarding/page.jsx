@@ -31,7 +31,7 @@ export default function OnboardingPage() {
           supabase.auth.getUser(),
           supabase
             .from('courses')
-            .select('id, course_name, course_code')
+            .select('id, course_name')
             .order('course_name')
         ])
 

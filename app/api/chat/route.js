@@ -93,12 +93,12 @@ export async function POST(request) {
     if (courseId) {
       const { data: course } = await supabase
         .from('courses')
-        .select('course_name, course_code')
+        .select('course_name')
         .eq('id', courseId)
         .single()
-      
+
       if (course) {
-        courseName = `${course.course_code} (${course.course_name})`
+        courseName = course.course_name
       }
     }
     

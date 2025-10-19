@@ -153,8 +153,7 @@ export async function POST(req) {
         category_metadata,
         week_number,
         courses:course_id (
-          course_name,
-          course_code
+          course_name
         ),
         topics:topic_id (
           topic_name,
