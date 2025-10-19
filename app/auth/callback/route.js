@@ -20,19 +20,21 @@ export async function GET(request) {
       }
 
       if (session?.user) {
+        // DISABLED: Onboarding flow temporarily disabled
+        // Users now go directly to homepage after login
         // Check if user has a profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', session.user.id)
-          .single()
+        // const { data: profile, error: profileError } = await supabase
+        //   .from('profiles')
+        //   .select('id')
+        //   .eq('id', session.user.id)
+        //   .single()
 
-        // If no profile exists, redirect to onboarding
-        if (!profile || profileError?.code === 'PGRST116') {
-          return NextResponse.redirect(new URL('/auth/onboarding', requestUrl.origin))
-        }
+        // // If no profile exists, redirect to onboarding
+        // if (!profile || profileError?.code === 'PGRST116') {
+        //   return NextResponse.redirect(new URL('/auth/onboarding', requestUrl.origin))
+        // }
 
-        // Profile exists, redirect to home
+        // Redirect to home after successful login
         return NextResponse.redirect(new URL('/', requestUrl.origin))
       }
     } catch (error) {
