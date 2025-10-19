@@ -56,7 +56,31 @@ export default withPWA({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development', // Disable in dev, enable in production
+
+  // Precache optimization
+  buildExcludes: [/middleware-manifest\.json$/],
+
+  // Aggressive app shell caching
+  fallbacks: {
+    document: '/offline', // Offline fallback page
+  },
+
   runtimeCaching: [
+    // HTML pages - Cache First for instant offline loading
+    {
+      urlPattern: /^https?:\/\/[^\/]+\/(courses|auth|upload|admin)?.*$/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'pages-cache',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+        },
+        cacheableResponse: {
+          statuses: [0, 200]
+        }
+      }
+    },
     {
       urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
       handler: 'CacheFirst',
@@ -92,23 +116,23 @@ export default withPWA({
     },
     {
       urlPattern: /\.(?:js)$/i,
-      handler: 'StaleWhileRevalidate',
+      handler: 'CacheFirst', // Changed to CacheFirst for instant loading
       options: {
         cacheName: 'static-js-assets',
         expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxEntries: 60,
+          maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
         }
       }
     },
     {
       urlPattern: /\.(?:css|less)$/i,
-      handler: 'StaleWhileRevalidate',
+      handler: 'CacheFirst', // Changed to CacheFirst for instant loading
       options: {
         cacheName: 'static-style-assets',
         expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxEntries: 60,
+          maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
         }
       }
     },
@@ -128,13 +152,14 @@ export default withPWA({
       }
     },
     {
+      // Catch-all: try network first, fallback to cache, then offline page
       urlPattern: /.*/i,
       handler: 'NetworkFirst',
       options: {
         cacheName: 'others',
-        networkTimeoutSeconds: 10,
+        networkTimeoutSeconds: 5, // Faster timeout for better offline experience
         expiration: {
-          maxEntries: 32,
+          maxEntries: 50,
           maxAgeSeconds: 24 * 60 * 60 // 24 hours
         }
       }
