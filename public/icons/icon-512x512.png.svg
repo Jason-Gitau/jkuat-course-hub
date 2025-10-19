@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#2563eb" rx="102.4"/>
+
+  <!-- Icon content - "JK" text -->
+  <text
+    x="50%"
+    y="50%"
+    font-family="Arial, sans-serif"
+    font-size="204.8"
+    font-weight="bold"
+    fill="white"
+    text-anchor="middle"
+    dominant-baseline="central">
+    JK
+  </text>
+
+  <!-- Book icon outline at bottom -->
+  <rect
+    x="153.6"
+    y="358.4"
+    width="204.8"
+    height="102.4"
+    fill="none"
+    stroke="white"
+    stroke-width="20.48"/>
+  <line
+    x1="256"
+    y1="358.4"
+    x2="256"
+    y2="460.8"
+    stroke="white"
+    stroke-width="20.48"/>
+</svg>
