@@ -55,7 +55,7 @@ export default withPWA({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development', // Disable in dev for easier debugging
+  disable: process.env.NODE_ENV === 'development', // Disable in dev, enable in production
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,

@@ -28,8 +28,8 @@ export default function InstallPrompt() {
 
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e) => {
-      // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault()
+      // DON'T call preventDefault() - let browser show its native install button!
+      // This allows the download icon to appear in the address bar on desktop
 
       // Stash the event so it can be triggered later
       setDeferredPrompt(e)

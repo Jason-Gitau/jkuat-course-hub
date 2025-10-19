@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
+import MaterialCard from '@/components/MaterialCard'
 
 export default function CoursePage() {
   const params = useParams()
@@ -489,35 +490,13 @@ export default function CoursePage() {
                             </h4>
                             <div className="space-y-3">
                               {groupedMaterials.weekly[weekKey].map(material => (
-                                <a
+                                <MaterialCard
                                   key={material.id}
-                                  href={material.file_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-4 transition shadow-sm hover:shadow-md"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <span className="text-2xl">
-                                      {material.material_category ? getCategoryIcon(material.material_category) : getFileIcon(material.type)}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between gap-2 mb-1">
-                                        <h3 className="font-semibold text-gray-900">{material.title}</h3>
-                                        {getCategoryLabel(material) && (
-                                          <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
-                                            {getCategoryLabel(material)}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {material.description && (
-                                        <p className="text-sm text-gray-600 mt-1">{material.description}</p>
-                                      )}
-                                      <p className="text-xs text-gray-500 mt-2">
-                                        Uploaded by {material.uploaded_by || 'Anonymous'} • {new Date(material.created_at).toLocaleDateString()}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </a>
+                                  material={material}
+                                  getCategoryIcon={getCategoryIcon}
+                                  getFileIcon={getFileIcon}
+                                  getCategoryLabel={getCategoryLabel}
+                                />
                               ))}
                             </div>
                           </div>
@@ -531,35 +510,13 @@ export default function CoursePage() {
                             </h4>
                             <div className="space-y-3">
                               {groupedMaterials.general.map(material => (
-                                <a
+                                <MaterialCard
                                   key={material.id}
-                                  href={material.file_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-4 transition shadow-sm hover:shadow-md"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <span className="text-2xl">
-                                      {material.material_category ? getCategoryIcon(material.material_category) : getFileIcon(material.type)}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between gap-2 mb-1">
-                                        <h3 className="font-semibold text-gray-900">{material.title}</h3>
-                                        {getCategoryLabel(material) && (
-                                          <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
-                                            {getCategoryLabel(material)}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {material.description && (
-                                        <p className="text-sm text-gray-600 mt-1">{material.description}</p>
-                                      )}
-                                      <p className="text-xs text-gray-500 mt-2">
-                                        Uploaded by {material.uploaded_by || 'Anonymous'} • {new Date(material.created_at).toLocaleDateString()}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </a>
+                                  material={material}
+                                  getCategoryIcon={getCategoryIcon}
+                                  getFileIcon={getFileIcon}
+                                  getCategoryLabel={getCategoryLabel}
+                                />
                               ))}
                             </div>
                           </div>
@@ -580,35 +537,13 @@ export default function CoursePage() {
               ) : (
                 <div className="space-y-3">
                   {filterByCategory(generalMaterials).map(material => (
-                    <a
+                    <MaterialCard
                       key={material.id}
-                      href={material.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-4 transition shadow-sm hover:shadow-md"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">
-                          {material.material_category ? getCategoryIcon(material.material_category) : getFileIcon(material.type)}
-                        </span>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-semibold text-gray-900">{material.title}</h3>
-                            {getCategoryLabel(material) && (
-                              <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
-                                {getCategoryLabel(material)}
-                              </span>
-                            )}
-                          </div>
-                          {material.description && (
-                            <p className="text-sm text-gray-600 mt-1">{material.description}</p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-2">
-                            Uploaded by {material.uploaded_by || 'Anonymous'} • {new Date(material.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    </a>
+                      material={material}
+                      getCategoryIcon={getCategoryIcon}
+                      getFileIcon={getFileIcon}
+                      getCategoryLabel={getCategoryLabel}
+                    />
                   ))}
                 </div>
               )}
