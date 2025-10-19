@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
 
 export default function CoursePage() {
   const params = useParams()
@@ -11,9 +12,6 @@ export default function CoursePage() {
 
   const [course, setCourse] = useState(null)
   const [topics, setTopics] = useState([])
-  const [materials, setMaterials] = useState([])
-  const [generalMaterials, setGeneralMaterials] = useState([])
-  const [loading, setLoading] = useState(true)
   const [categoryFilter, setCategoryFilter] = useState('all')
 
   // New states for unit browsing
@@ -23,10 +21,21 @@ export default function CoursePage() {
 
   const supabase = createClient()
 
+  // Use offline-first hook for materials
+  const {
+    materials: allMaterials,
+    loading: materialsLoading,
+    isOnline,
+    isOffline,
+    lastSync
+  } = useOfflineMaterials(courseId)
+
+  // Separate general materials from topic-specific ones
+  const generalMaterials = allMaterials.filter(m => !m.topic_id)
+  const materials = allMaterials.filter(m => m.topic_id)
+
   useEffect(() => {
     async function loadCourseData() {
-      setLoading(true)
-
       // Load course info
       const { data: courseData } = await supabase
         .from('courses')
@@ -46,30 +55,14 @@ export default function CoursePage() {
         .order('week_number', { ascending: true, nullsFirst: false })
 
       setTopics(topicsData || [])
-
-      // Load all approved materials for this course (including week_number)
-      const { data: materialsData } = await supabase
-        .from('materials')
-        .select('id, title, description, type, file_url, topic_id, uploaded_by, created_at, material_category, category_metadata, week_number')
-        .eq('course_id', courseId)
-        .eq('status', 'approved')
-        .order('week_number', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: false })
-
-      // Separate general materials (no topic) from topic-specific ones
-      const general = materialsData?.filter(m => !m.topic_id) || []
-      const topicSpecific = materialsData?.filter(m => m.topic_id) || []
-
-      setGeneralMaterials(general)
-      setMaterials(topicSpecific)
-
-      setLoading(false)
     }
 
     if (courseId) {
       loadCourseData()
     }
   }, [courseId])
+
+  const loading = materialsLoading && !course
 
   function getMaterialsForTopic(topicId) {
     const topicMaterials = materials.filter(m => m.topic_id === topicId)
@@ -238,6 +231,21 @@ export default function CoursePage() {
     <div className="max-w-5xl mx-auto p-8">
       {/* Course Header */}
       <div className="mb-8">
+        {/* Offline Status Banner */}
+        {isOffline && (
+          <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+              <span>Offline Mode - Viewing cached materials</span>
+            </div>
+            {lastSync && (
+              <span className="text-xs text-yellow-700">
+                Last synced: {new Date(lastSync).toLocaleString()}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">

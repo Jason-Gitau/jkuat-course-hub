@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import InstallPrompt from "@/components/InstallPrompt";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
 import { UserProvider } from "@/lib/providers/UserProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -49,6 +50,7 @@ export default function RootLayout({ children }) {
           <UserProvider>
             <Navigation />
             {children}
+            <InstallPrompt />
           </UserProvider>
         </QueryProvider>
         <SpeedInsights />

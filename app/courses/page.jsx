@@ -1,72 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 import Link from 'next/link'
+import { useOfflineCourses } from '@/lib/hooks/useOfflineData'
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState([])
-  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [error, setError] = useState(null)
 
-  const supabase = createClient()
-
-  useEffect(() => {
-    async function loadCourses() {
-      try {
-        setLoading(true)
-        setError(null)
-
-        // Optimized: Get all courses and materials in two parallel queries
-        // This eliminates the N+1 problem (was 50+ queries, now just 2)
-        const [{ data: courses, error: coursesError }, { data: materials, error: materialsError }] = await Promise.all([
-          supabase
-            .from('courses')
-            .select('id, course_name, description, department')
-            .order('course_name'),
-          supabase
-            .from('materials')
-            .select('course_id')
-            .eq('status', 'approved')
-        ])
-
-        if (coursesError) {
-          console.error('Error loading courses:', coursesError)
-          setError(`Failed to load courses: ${coursesError.message}`)
-          setLoading(false)
-          return
-        }
-
-        if (materialsError) {
-          console.error('Error loading materials:', materialsError)
-          setError(`Failed to load materials: ${materialsError.message}`)
-          setLoading(false)
-          return
-        }
-
-        // Count materials per course in memory (instant - no DB query needed)
-        const materialCounts = {}
-        materials?.forEach(m => {
-          materialCounts[m.course_id] = (materialCounts[m.course_id] || 0) + 1
-        })
-
-        const coursesWithCounts = courses?.map(course => ({
-          ...course,
-          materialsCount: materialCounts[course.id] || 0
-        })) || []
-
-        setCourses(coursesWithCounts)
-        setLoading(false)
-      } catch (err) {
-        console.error('Unexpected error:', err)
-        setError(`Unexpected error: ${err.message}`)
-        setLoading(false)
-      }
-    }
-
-    loadCourses()
-  }, [])
+  // Use offline-first hook - automatically handles online/offline
+  const { courses, loading, error, isOnline, isOffline, lastSync } = useOfflineCourses()
 
   const filteredCourses = courses.filter(course => {
     const query = searchQuery.toLowerCase()
@@ -95,10 +37,28 @@ export default function CoursesPage() {
     <div className="max-w-6xl mx-auto p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">Browse Courses</h1>
-        <p className="text-gray-600 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-4xl font-bold">Browse Courses</h1>
+
+          {/* Network Status Badge */}
+          {isOffline && (
+            <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-1 rounded-full text-sm">
+              <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+              Offline Mode
+            </div>
+          )}
+        </div>
+
+        <p className="text-gray-600 mb-2">
           Select a course to view materials and access the AI tutor
         </p>
+
+        {/* Sync Status */}
+        {isOffline && lastSync && (
+          <p className="text-xs text-gray-500 mb-4">
+            Last synced: {new Date(lastSync).toLocaleString()} • Viewing cached data
+          </p>
+        )}
 
         {/* Search Bar */}
         <input
