@@ -57,8 +57,12 @@ export default withPWA({
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development', // Disable in dev, enable in production
 
-  // Precache optimization
-  buildExcludes: [/middleware-manifest\.json$/],
+  // Precache optimization - exclude manifest files that cause 404 errors
+  buildExcludes: [
+    /middleware-manifest\.json$/,
+    /app-build-manifest\.json$/,
+    /build-manifest\.json$/,
+  ],
 
   // Aggressive app shell caching
   fallbacks: {
@@ -66,9 +70,32 @@ export default withPWA({
   },
 
   runtimeCaching: [
-    // HTML pages - Cache First for instant offline loading
+    // Root URL - Cache First for instant offline loading
     {
-      urlPattern: /^https?:\/\/[^\/]+\/(courses|auth|upload|admin)?.*$/i,
+      urlPattern: ({url}) => url.pathname === '/',
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'start-url',
+        expiration: {
+          maxEntries: 1,
+          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+        },
+        cacheableResponse: {
+          statuses: [0, 200]
+        }
+      }
+    },
+    // HTML pages (navigation requests) - Cache First for offline support
+    {
+      urlPattern: ({url, request}) => {
+        // Match all navigation requests (page loads)
+        return request.mode === 'navigate' ||
+               request.destination === 'document' ||
+               url.pathname.startsWith('/courses') ||
+               url.pathname.startsWith('/auth') ||
+               url.pathname.startsWith('/upload') ||
+               url.pathname.startsWith('/admin')
+      },
       handler: 'CacheFirst',
       options: {
         cacheName: 'pages-cache',
@@ -152,15 +179,17 @@ export default withPWA({
       }
     },
     {
-      // Catch-all: try network first, fallback to cache, then offline page
+      // Catch-all: Cache First for true offline support
       urlPattern: /.*/i,
-      handler: 'NetworkFirst',
+      handler: 'CacheFirst',
       options: {
         cacheName: 'others',
-        networkTimeoutSeconds: 5, // Faster timeout for better offline experience
         expiration: {
-          maxEntries: 50,
+          maxEntries: 100,
           maxAgeSeconds: 24 * 60 * 60 // 24 hours
+        },
+        cacheableResponse: {
+          statuses: [0, 200]
         }
       }
     }

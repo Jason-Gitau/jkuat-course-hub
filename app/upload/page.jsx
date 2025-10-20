@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/auth/useUser'
+import { syncMaterialsForCourse, syncTopicsForCourse } from '@/lib/db/syncManager'
 
 export default function UploadPage() {
   const { user, profile, loading: authLoading } = useUser()
@@ -234,6 +235,16 @@ Uploaded by: ${uploaderText}`
       setSelectedCourse(data.id)
       setCourseSearch(data.course_name)
 
+      // OFFLINE-FIRST: Immediately sync new course to IndexedDB
+      console.log('💾 Syncing new course to IndexedDB...')
+      try {
+        const { syncCourses } = await import('@/lib/db/syncManager')
+        await syncCourses()
+        console.log('✅ Course synced to IndexedDB')
+      } catch (syncError) {
+        console.warn('⚠️ Failed to sync course to IndexedDB:', syncError)
+      }
+
       // Reset form
       setShowCreateCourse(false)
       setNewCourseName('')
@@ -273,6 +284,15 @@ Uploaded by: ${uploaderText}`
       setTopics([...topics, data])
       setSelectedTopic(data.id)
       setUnitSearch(`${data.unit_code} - ${data.topic_name} (Year ${data.year}, Sem ${data.semester})`)
+
+      // OFFLINE-FIRST: Immediately sync new unit to IndexedDB
+      console.log('💾 Syncing new unit to IndexedDB...')
+      try {
+        await syncTopicsForCourse(selectedCourse)
+        console.log('✅ Unit synced to IndexedDB')
+      } catch (syncError) {
+        console.warn('⚠️ Failed to sync unit to IndexedDB:', syncError)
+      }
 
       // Reset form
       setShowCreateUnit(false)
@@ -376,6 +396,16 @@ Uploaded by: ${uploaderText}`
       // Generate share message client-side (instant, non-blocking)
       const message = generateShareMessage(result.material)
       setShareMessage(message)
+
+      // OFFLINE-FIRST: Immediately sync uploader's IndexedDB
+      console.log('💾 Syncing uploaded material to IndexedDB...')
+      try {
+        await syncMaterialsForCourse(selectedCourse)
+        console.log('✅ Material synced to IndexedDB')
+      } catch (syncError) {
+        console.warn('⚠️ Failed to sync to IndexedDB:', syncError)
+        // Don't block upload success - this is just a cache update
+      }
 
       // Reset form
       setFile(null)

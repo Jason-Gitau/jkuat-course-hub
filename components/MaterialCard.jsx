@@ -8,18 +8,17 @@ import { useCachedFile } from '@/lib/hooks/useCachedFile'
  * Downloads files only once, then serves from IndexedDB cache
  */
 export default function MaterialCard({ material, getCategoryIcon, getFileIcon, getCategoryLabel }) {
-  const { openFile, isDownloading, progress } = useCachedFile()
+  const { openFile, isDownloading, progress, isFileCached } = useCachedFile()
   const [isCached, setIsCached] = useState(false)
 
   // Check if file is already cached on mount
   useEffect(() => {
     async function checkCache() {
-      const { isFileCached } = useCachedFile()
       const cached = await isFileCached(material.id)
       setIsCached(cached)
     }
     checkCache()
-  }, [material.id])
+  }, [material.id, isFileCached])
 
   const handleClick = (e) => {
     e.preventDefault()

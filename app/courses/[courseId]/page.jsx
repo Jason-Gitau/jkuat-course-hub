@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
+import { getTopicsForCourse, syncTopicsForCourse } from '@/lib/db/syncManager'
 import MaterialCard from '@/components/MaterialCard'
 
 export default function CoursePage() {
@@ -37,7 +38,8 @@ export default function CoursePage() {
 
   useEffect(() => {
     async function loadCourseData() {
-      // Load course info
+      // OFFLINE-FIRST: Load course from IndexedDB first
+      // Course data comes from the courses list, but we need to fetch it here
       const { data: courseData } = await supabase
         .from('courses')
         .select('id, course_name, description, department')
@@ -46,16 +48,33 @@ export default function CoursePage() {
 
       setCourse(courseData)
 
-      // Load topics/units with year and semester
-      const { data: topicsData } = await supabase
-        .from('topics')
-        .select('id, topic_name, week_number, description, unit_code, year, semester')
-        .eq('course_id', courseId)
-        .order('year', { ascending: true, nullsFirst: false })
-        .order('semester', { ascending: true, nullsFirst: false })
-        .order('week_number', { ascending: true, nullsFirst: false })
+      // OFFLINE-FIRST: Load topics from IndexedDB
+      const topicsResult = await getTopicsForCourse(courseId)
 
-      setTopics(topicsData || [])
+      if (topicsResult.success && topicsResult.data.length > 0) {
+        // Got topics from IndexedDB
+        setTopics(topicsResult.data)
+
+        // Background sync if stale (check if we're in browser first to avoid hydration issues)
+        const isOnline = typeof window !== 'undefined' && navigator.onLine
+        if (topicsResult.isStale && isOnline) {
+          console.log('🔄 Background syncing topics...')
+          const syncResult = await syncTopicsForCourse(courseId)
+          if (syncResult.success) {
+            setTopics(syncResult.data)
+            console.log('✅ Topics synced')
+          }
+        }
+      } else {
+        // No topics in IndexedDB, fetch from Supabase
+        console.log('📥 Fetching topics from Supabase...')
+        const syncResult = await syncTopicsForCourse(courseId)
+        if (syncResult.success) {
+          setTopics(syncResult.data)
+        } else {
+          setTopics([])
+        }
+      }
     }
 
     if (courseId) {

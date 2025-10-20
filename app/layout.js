@@ -5,6 +5,7 @@ import InstallPrompt from "@/components/InstallPrompt";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
 import { UserProvider } from "@/lib/providers/UserProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import ServiceWorkerInit from "@/components/ServiceWorkerInit";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,12 +49,13 @@ export default function RootLayout({ children }) {
       >
         <QueryProvider>
           <UserProvider>
+            <ServiceWorkerInit />
             <Navigation />
             {children}
             <InstallPrompt />
           </UserProvider>
         </QueryProvider>
-        <SpeedInsights />
+        {process.env.VERCEL === '1' && <SpeedInsights />}
       </body>
     </html>
   );
