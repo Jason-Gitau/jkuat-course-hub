@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
-import { getTopicsForCourse, syncTopicsForCourse } from '@/lib/db/syncManager'
+import { getTopicsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
+import { STORES, getFromStore } from '@/lib/db/indexedDB'
 import MaterialCard from '@/components/MaterialCard'
 
 export default function CoursePage() {
@@ -13,6 +14,7 @@ export default function CoursePage() {
   const courseId = params.courseId
 
   const [course, setCourse] = useState(null)
+  const [courseLoading, setCourseLoading] = useState(true)
   const [topics, setTopics] = useState([])
   const [categoryFilter, setCategoryFilter] = useState('all')
 
@@ -20,8 +22,6 @@ export default function CoursePage() {
   const [selectedUnit, setSelectedUnit] = useState(null)
   const [unitSearch, setUnitSearch] = useState('')
   const [showAllUnits, setShowAllUnits] = useState(true)
-
-  const supabase = createClient()
 
   // Use offline-first hook for materials
   const {
@@ -37,52 +37,134 @@ export default function CoursePage() {
   const materials = allMaterials.filter(m => m.topic_id)
 
   useEffect(() => {
+    // Only run in browser
+    if (typeof window === 'undefined' || !courseId) return
+
+    const supabase = createClient()
+
     async function loadCourseData() {
-      // OFFLINE-FIRST: Load course from IndexedDB first
-      // Course data comes from the courses list, but we need to fetch it here
-      const { data: courseData } = await supabase
-        .from('courses')
-        .select('id, course_name, description, department')
-        .eq('id', courseId)
-        .single()
+      try {
+        setCourseLoading(true)
 
-      setCourse(courseData)
+        // OFFLINE-FIRST: Load course from IndexedDB first (INSTANT!)
+        let courseData = null
 
-      // OFFLINE-FIRST: Load topics from IndexedDB
-      const topicsResult = await getTopicsForCourse(courseId)
+        try {
+          courseData = await getFromStore(STORES.COURSES, courseId)
+        } catch (indexedDBError) {
+          console.warn('IndexedDB not available:', indexedDBError)
+          // Continue to Supabase fallback
+        }
 
-      if (topicsResult.success && topicsResult.data.length > 0) {
-        // Got topics from IndexedDB
-        setTopics(topicsResult.data)
+        if (courseData) {
+          // Got course from IndexedDB - show it immediately
+          setCourse(courseData)
+          setCourseLoading(false)
+          console.log('✅ Course loaded from IndexedDB (instant)')
 
-        // Background sync if stale (check if we're in browser first to avoid hydration issues)
-        const isOnline = typeof window !== 'undefined' && navigator.onLine
-        if (topicsResult.isStale && isOnline) {
-          console.log('🔄 Background syncing topics...')
-          const syncResult = await syncTopicsForCourse(courseId)
-          if (syncResult.success) {
-            setTopics(syncResult.data)
-            console.log('✅ Topics synced')
+          // Background sync if stale (>30 mins)
+          const isOnline = navigator.onLine
+          const isStale = courseData._syncedAt
+            ? Date.now() - courseData._syncedAt > 30 * 60 * 1000
+            : true
+
+          if (isStale && isOnline) {
+            console.log('🔄 Background syncing course data...')
+            try {
+              const syncResult = await syncCourses()
+              if (syncResult.success) {
+                // Get the updated course
+                const updatedCourse = syncResult.data.find(c => c.id === courseId)
+                if (updatedCourse) {
+                  setCourse(updatedCourse)
+                  console.log('✅ Course data synced in background')
+                }
+              }
+            } catch (syncError) {
+              console.warn('Background sync failed:', syncError)
+              // Not critical - we already have cached data
+            }
+          }
+        } else {
+          // Course not in IndexedDB - fetch from Supabase and cache it
+          console.log('📥 Fetching course from Supabase (first visit)...')
+          const { data: supabaseCourse, error } = await supabase
+            .from('courses')
+            .select('id, course_name, description, department')
+            .eq('id', courseId)
+            .single()
+
+          if (error) {
+            console.error('Error fetching course:', error)
+            setCourse(null)
+            setCourseLoading(false)
+          } else if (supabaseCourse) {
+            setCourse(supabaseCourse)
+            setCourseLoading(false)
+
+            // Sync all courses to cache this one (non-blocking)
+            try {
+              console.log('💾 Caching course for future visits...')
+              await syncCourses()
+            } catch (cacheError) {
+              console.warn('Failed to cache courses:', cacheError)
+              // Not critical - page still works
+            }
+          } else {
+            // No course found
+            setCourse(null)
+            setCourseLoading(false)
           }
         }
-      } else {
-        // No topics in IndexedDB, fetch from Supabase
-        console.log('📥 Fetching topics from Supabase...')
-        const syncResult = await syncTopicsForCourse(courseId)
-        if (syncResult.success) {
-          setTopics(syncResult.data)
-        } else {
+
+        // OFFLINE-FIRST: Load topics from IndexedDB
+        try {
+          const topicsResult = await getTopicsForCourse(courseId)
+
+          if (topicsResult.success && topicsResult.data.length > 0) {
+            // Got topics from IndexedDB
+            setTopics(topicsResult.data)
+
+            // Background sync if stale
+            const isOnline = navigator.onLine
+            if (topicsResult.isStale && isOnline) {
+              console.log('🔄 Background syncing topics...')
+              try {
+                const syncResult = await syncTopicsForCourse(courseId)
+                if (syncResult.success) {
+                  setTopics(syncResult.data)
+                  console.log('✅ Topics synced')
+                }
+              } catch (syncError) {
+                console.warn('Topic sync failed:', syncError)
+              }
+            }
+          } else {
+            // No topics in IndexedDB, fetch from Supabase
+            console.log('📥 Fetching topics from Supabase...')
+            const syncResult = await syncTopicsForCourse(courseId)
+            if (syncResult.success) {
+              setTopics(syncResult.data)
+            } else {
+              setTopics([])
+            }
+          }
+        } catch (topicsError) {
+          console.error('Error loading topics:', topicsError)
           setTopics([])
         }
+      } catch (error) {
+        console.error('Critical error loading course data:', error)
+        setCourse(null)
+        setCourseLoading(false)
+        setTopics([])
       }
     }
 
-    if (courseId) {
-      loadCourseData()
-    }
+    loadCourseData()
   }, [courseId])
 
-  const loading = materialsLoading && !course
+  const loading = materialsLoading || courseLoading
 
   function getMaterialsForTopic(topicId) {
     const topicMaterials = materials.filter(m => m.topic_id === topicId)

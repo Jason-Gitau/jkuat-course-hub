@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/auth/useUser'
 import { syncMaterialsForCourse, syncTopicsForCourse } from '@/lib/db/syncManager'
+import { addToUploadQueue, initUploadQueue } from '@/lib/uploadQueue'
+import UploadQueue from '@/components/UploadQueue'
 
 export default function UploadPage() {
   const { user, profile, loading: authLoading } = useUser()
@@ -43,8 +45,14 @@ export default function UploadPage() {
   const [newUnitSemester, setNewUnitSemester] = useState('')
   const [creating, setCreating] = useState(false)
   const [materialWeekNumber, setMaterialWeekNumber] = useState('')
+  const [queuedToast, setQueuedToast] = useState('')
 
   const supabase = createClient()
+
+  // Initialize upload queue
+  useEffect(() => {
+    initUploadQueue()
+  }, [])
 
   // Pre-fill form with user's profile data
   useEffect(() => {
@@ -418,7 +426,8 @@ Uploaded by: ${uploaderText}`
       setYearNumber('')
       setAssignmentNumber('')
       setUploadProgress(0)
-      document.getElementById('file-input').value = ''
+      const fileInput = document.getElementById('file-input')
+      if (fileInput) fileInput.value = ''
 
     } catch (err) {
       setError(err.message)
@@ -427,7 +436,71 @@ Uploaded by: ${uploaderText}`
       setUploading(false)
     }
   }
-  
+
+  // New function: Add to queue instead of uploading immediately
+  async function handleAddToQueue(e) {
+    e.preventDefault()
+    setError('')
+    setQueuedToast('')
+
+    if (!file || !selectedCourse || !title) {
+      setError('Please fill in all required fields')
+      return
+    }
+
+    try {
+      // Build category metadata
+      const categoryMetadata = {}
+      if (materialCategory === 'weekly_notes' && weekNumber) {
+        categoryMetadata.week = parseInt(weekNumber)
+      }
+      if (materialCategory === 'past_paper' && yearNumber) {
+        categoryMetadata.year = parseInt(yearNumber)
+      }
+      if (materialCategory === 'assignment' && assignmentNumber) {
+        categoryMetadata.assignment_number = parseInt(assignmentNumber)
+      }
+
+      // Prepare metadata object
+      const metadata = {
+        courseId: selectedCourse,
+        topicId: selectedTopic || null,
+        title: title,
+        description: description || null,
+        category: materialCategory || null,
+        categoryMetadata: Object.keys(categoryMetadata).length > 0 ? categoryMetadata : null,
+        weekNumber: materialWeekNumber || null,
+        uploaderName: uploaderName || null,
+        userId: user?.id || null,
+        uploaderYear: profile?.year || null,
+        uploaderCourseId: profile?.course_id || null,
+      }
+
+      // Add to queue
+      await addToUploadQueue(file, metadata)
+
+      // Show success toast
+      setQueuedToast(`"${title}" added to upload queue!`)
+      setTimeout(() => setQueuedToast(''), 3000)
+
+      // Reset form
+      setFile(null)
+      setTitle('')
+      setDescription('')
+      setSelectedTopic('')
+      setMaterialCategory('')
+      setMaterialWeekNumber('')
+      setWeekNumber('')
+      setYearNumber('')
+      setAssignmentNumber('')
+      const fileInput = document.getElementById('file-input')
+      if (fileInput) fileInput.value = ''
+
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function copyToClipboard() {
     navigator.clipboard.writeText(shareMessage)
     alert('Message copied! Paste in your class WhatsApp group.')
@@ -437,8 +510,18 @@ Uploaded by: ${uploaderText}`
     <div className="max-w-2xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-2">Upload Course Material</h1>
       <p className="text-gray-600 mb-6">
-        Share materials with your classmates. Uploads are published immediately.
+        Share materials with your classmates. Upload immediately or add to queue for background processing.
       </p>
+
+      {/* Queued Toast Notification */}
+      {queuedToast && (
+        <div className="fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+          ✅ {queuedToast}
+        </div>
+      )}
+
+      {/* Upload Queue Component */}
+      <UploadQueue />
 
       {/* User Profile Banner */}
       {profile && (
@@ -1035,14 +1118,35 @@ Uploaded by: ${uploaderText}`
             </div>
           )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={uploading}
-            className="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            {uploading ? 'Uploading...' : 'Upload Material'}
-          </button>
+          {/* Submit Buttons */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleAddToQueue}
+              disabled={uploading}
+              className="flex-1 bg-green-600 text-white py-3 rounded font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              <span>📋</span>
+              Add to Queue
+            </button>
+            <button
+              type="submit"
+              disabled={uploading}
+              className="flex-1 bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {uploading ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <span>⬆️</span>
+                  Upload Now
+                </>
+              )}
+            </button>
+          </div>
         </form>
       )}
       
@@ -1050,7 +1154,8 @@ Uploaded by: ${uploaderText}`
         <h3 className="font-semibold mb-2">Guidelines:</h3>
         <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
           <li>Only upload materials you have permission to share</li>
-          <li>Materials are published immediately and visible to everyone</li>
+          <li><strong>Upload Now:</strong> Immediate upload (blocks until complete)</li>
+          <li><strong>Add to Queue:</strong> Queue multiple files for background processing (instant feedback!)</li>
           <li>Make titles clear and descriptive</li>
           <li>Tag with correct course, unit, and week for easy discovery</li>
         </ul>
