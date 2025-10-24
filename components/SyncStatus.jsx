@@ -11,7 +11,7 @@ import { syncAll } from '@/lib/db/syncManager'
 export default function SyncStatus({ userId }) {
   const [lastSync, setLastSync] = useState(null)
   const [syncing, setSyncing] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline] = useState(false)
 
   useEffect(() => {
     // Load last sync time
@@ -28,6 +28,8 @@ export default function SyncStatus({ userId }) {
 
     // Monitor online/offline status
     const updateOnlineStatus = () => setIsOnline(navigator.onLine)
+
+    // Set initial status after mount
     updateOnlineStatus()
 
     window.addEventListener('online', updateOnlineStatus)

@@ -6,8 +6,11 @@ export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showPrompt, setShowPrompt] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+
     // Check if already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstalled(true)
@@ -81,8 +84,8 @@ export default function InstallPrompt() {
     localStorage.setItem('pwa-install-dismissed', Date.now().toString())
   }
 
-  // Don't show if already installed or prompt not available
-  if (isInstalled || !showPrompt || !deferredPrompt) {
+  // Don't show if not mounted yet, already installed, or prompt not available
+  if (!mounted || isInstalled || !showPrompt || !deferredPrompt) {
     return null
   }
 

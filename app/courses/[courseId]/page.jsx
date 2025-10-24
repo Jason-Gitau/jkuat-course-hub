@@ -8,6 +8,7 @@ import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
 import { getTopicsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
 import { STORES, getFromStore } from '@/lib/db/indexedDB'
 import MaterialCard from '@/components/MaterialCard'
+import VirtualMaterialList from '@/components/VirtualMaterialList'
 
 export default function CoursePage() {
   const params = useParams()
@@ -636,17 +637,14 @@ export default function CoursePage() {
                   <p className="text-gray-600">No general materials found.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {filterByCategory(generalMaterials).map(material => (
-                    <MaterialCard
-                      key={material.id}
-                      material={material}
-                      getCategoryIcon={getCategoryIcon}
-                      getFileIcon={getFileIcon}
-                      getCategoryLabel={getCategoryLabel}
-                    />
-                  ))}
-                </div>
+                <VirtualMaterialList
+                  materials={filterByCategory(generalMaterials)}
+                  getCategoryIcon={getCategoryIcon}
+                  getFileIcon={getFileIcon}
+                  getCategoryLabel={getCategoryLabel}
+                  height={Math.min(filterByCategory(generalMaterials).length * 120, 800)}
+                  itemHeight={120}
+                />
               )}
             </>
           )}

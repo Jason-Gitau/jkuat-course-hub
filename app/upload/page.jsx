@@ -171,10 +171,13 @@ export default function UploadPage() {
       if (!material_category) return ''
 
       const typeLabels = {
+        'notes': 'Notes',
+        'past_paper': 'Past Paper',
+        'lab_material': 'Lab Material',
+        'assignment': 'Assignment',
+        // Legacy support for old categories
         'complete_notes': 'Complete Semester Notes',
         'weekly_notes': 'Weekly Notes',
-        'past_paper': 'Past Paper',
-        'assignment': 'Assignment',
         'lab_guide': 'Lab Guide',
         'other': 'Material'
       }
@@ -322,19 +325,51 @@ Uploaded by: ${uploaderText}`
     setShareMessage('')
     setUploadProgress(0)
 
-    if (!file || !selectedCourse || !title) {
-      setError('Please fill in all required fields')
+    // Validate required fields: file, course, unit, material type
+    if (!file || !selectedCourse || !selectedTopic || !materialCategory) {
+      setError('Please fill in all required fields (Course, Unit, Material Type, and File)')
       return
     }
 
     setUploading(true)
 
     try {
+      // Auto-generate title if not provided
+      let finalTitle = title
+      if (!finalTitle || finalTitle.trim() === '') {
+        // Find selected topic details
+        const selectedTopicData = topics.find(t => t.id === selectedTopic)
+
+        // Build title: [Category] - [Unit Code] - [Metadata]
+        const categoryNames = {
+          'notes': 'Notes',
+          'past_paper': 'Past Paper',
+          'lab_material': 'Lab Material',
+          'assignment': 'Assignment'
+        }
+
+        const categoryName = categoryNames[materialCategory] || 'Material'
+        const unitCode = selectedTopicData?.unit_code || 'Unit'
+
+        let metadata = ''
+        if (materialCategory === 'notes' && weekNumber) {
+          metadata = ` - Week ${weekNumber}`
+        } else if (materialCategory === 'lab_material' && weekNumber) {
+          metadata = ` - Week ${weekNumber}`
+        } else if (materialCategory === 'past_paper' && yearNumber) {
+          metadata = ` - ${yearNumber}`
+        } else if (materialCategory === 'assignment' && assignmentNumber) {
+          metadata = ` - Assignment ${assignmentNumber}`
+        }
+
+        finalTitle = `${unitCode} ${categoryName}${metadata}`
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       formData.append('course_id', selectedCourse)
       formData.append('topic_id', selectedTopic)
-      formData.append('title', title)
+      formData.append('title', finalTitle)
       formData.append('description', description)
       formData.append('uploader_name', uploaderName)
 
@@ -349,7 +384,7 @@ Uploaded by: ${uploaderText}`
 
         // Build category metadata based on category type
         const metadata = {}
-        if (materialCategory === 'weekly_notes' && weekNumber) {
+        if ((materialCategory === 'notes' || materialCategory === 'lab_material') && weekNumber) {
           metadata.week = parseInt(weekNumber)
         }
         if (materialCategory === 'past_paper' && yearNumber) {
@@ -443,15 +478,41 @@ Uploaded by: ${uploaderText}`
     setError('')
     setQueuedToast('')
 
-    if (!file || !selectedCourse || !title) {
-      setError('Please fill in all required fields')
+    // Validate required fields: file, course, unit, material type
+    if (!file || !selectedCourse || !selectedTopic || !materialCategory) {
+      setError('Please fill in all required fields (Course, Unit, Material Type, and File)')
       return
     }
 
     try {
+      // Auto-generate title if not provided (same logic as handleSubmit)
+      let finalTitle = title
+      if (!finalTitle || finalTitle.trim() === '') {
+        const selectedTopicData = topics.find(t => t.id === selectedTopic)
+        const categoryNames = {
+          'notes': 'Notes',
+          'past_paper': 'Past Paper',
+          'lab_material': 'Lab Material',
+          'assignment': 'Assignment'
+        }
+        const categoryName = categoryNames[materialCategory] || 'Material'
+        const unitCode = selectedTopicData?.unit_code || 'Unit'
+        let metadata = ''
+        if (materialCategory === 'notes' && weekNumber) {
+          metadata = ` - Week ${weekNumber}`
+        } else if (materialCategory === 'lab_material' && weekNumber) {
+          metadata = ` - Week ${weekNumber}`
+        } else if (materialCategory === 'past_paper' && yearNumber) {
+          metadata = ` - ${yearNumber}`
+        } else if (materialCategory === 'assignment' && assignmentNumber) {
+          metadata = ` - Assignment ${assignmentNumber}`
+        }
+        finalTitle = `${unitCode} ${categoryName}${metadata}`
+      }
+
       // Build category metadata
       const categoryMetadata = {}
-      if (materialCategory === 'weekly_notes' && weekNumber) {
+      if ((materialCategory === 'notes' || materialCategory === 'lab_material') && weekNumber) {
         categoryMetadata.week = parseInt(weekNumber)
       }
       if (materialCategory === 'past_paper' && yearNumber) {
@@ -464,10 +525,10 @@ Uploaded by: ${uploaderText}`
       // Prepare metadata object
       const metadata = {
         courseId: selectedCourse,
-        topicId: selectedTopic || null,
-        title: title,
+        topicId: selectedTopic,
+        title: finalTitle,
         description: description || null,
-        category: materialCategory || null,
+        category: materialCategory,
         categoryMetadata: Object.keys(categoryMetadata).length > 0 ? categoryMetadata : null,
         weekNumber: materialWeekNumber || null,
         uploaderName: uploaderName || null,
@@ -479,8 +540,8 @@ Uploaded by: ${uploaderText}`
       // Add to queue
       await addToUploadQueue(file, metadata)
 
-      // Show success toast
-      setQueuedToast(`"${title}" added to upload queue!`)
+      // Show success toast with the final title (either user-provided or auto-generated)
+      setQueuedToast(`"${finalTitle}" added to upload queue!`)
       setTimeout(() => setQueuedToast(''), 3000)
 
       // Reset form
@@ -714,7 +775,7 @@ Uploaded by: ${uploaderText}`
           {selectedCourse && (
             <div>
               <label className="block text-sm font-medium mb-2">
-                2. Unit (optional)
+                2. Select Unit <span className="text-red-500">*</span>
               </label>
               <div className="relative autocomplete-container">
                 <input
@@ -728,8 +789,9 @@ Uploaded by: ${uploaderText}`
                     }
                   }}
                   onFocus={() => setShowUnitDropdown(true)}
-                  placeholder="Type to search units or leave blank for general..."
+                  placeholder="Search for the unit this material belongs to..."
                   className="w-full border border-gray-300 rounded px-3 py-2"
+                  required
                 />
 
                 {/* Autocomplete Dropdown */}
@@ -774,9 +836,6 @@ Uploaded by: ${uploaderText}`
 
               {selectedTopic && (
                 <p className="text-sm text-green-600 mt-1">✓ Unit selected</p>
-              )}
-              {!selectedTopic && !unitSearch && (
-                <p className="text-sm text-gray-500 mt-1">Leaving blank will mark as general material</p>
               )}
             </div>
           )}
@@ -877,232 +936,171 @@ Uploaded by: ${uploaderText}`
               </div>
             </div>
           )}
-          
-          {/* Material Title */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              3. Material Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Lecture Notes - Chain Rule"
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required
-            />
-          </div>
 
-          {/* Week Number for Material Organization */}
+          {/* Material Type */}
           {selectedTopic && (
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Week Number (optional)
+              <label className="block text-sm font-medium mb-3">
+                3. Material Type <span className="text-red-500">*</span>
               </label>
-              <select
-                value={materialWeekNumber}
-                onChange={(e) => setMaterialWeekNumber(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              >
-                <option value="">Select week (or leave blank for general materials)...</option>
-                {Array.from({ length: 15 }, (_, i) => i + 1).map(week => (
-                  <option key={week} value={week}>Week {week}</option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Organize materials by week within the semester. Leave blank for past papers or general materials.
-              </p>
-            </div>
-          )}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setMaterialCategory('notes')}
+                  className={`p-4 border-2 rounded-lg transition text-center ${
+                    materialCategory === 'notes'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-green-300'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">📝</div>
+                  <div className="font-medium text-gray-900">Notes</div>
+                  <div className="text-xs text-gray-500">Lecture notes, study materials</div>
+                </button>
 
-          {/* Material Type (Optional) */}
-          <div>
-            <label className="block text-sm font-medium mb-3">
-              Material Type (optional)
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value=""
-                  checked={materialCategory === ''}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Not specified</span>
-              </label>
+                <button
+                  type="button"
+                  onClick={() => setMaterialCategory('past_paper')}
+                  className={`p-4 border-2 rounded-lg transition text-center ${
+                    materialCategory === 'past_paper'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">📄</div>
+                  <div className="font-medium text-gray-900">Past Papers</div>
+                  <div className="text-xs text-gray-500">Exams, tests, samples</div>
+                </button>
 
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value="complete_notes"
-                  checked={materialCategory === 'complete_notes'}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Complete Semester Notes</span>
-              </label>
+                <button
+                  type="button"
+                  onClick={() => setMaterialCategory('lab_material')}
+                  className={`p-4 border-2 rounded-lg transition text-center ${
+                    materialCategory === 'lab_material'
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-200 hover:border-purple-300'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">🧪</div>
+                  <div className="font-medium text-gray-900">Lab Materials</div>
+                  <div className="text-xs text-gray-500">Lab guides, practicals</div>
+                </button>
 
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value="weekly_notes"
-                  checked={materialCategory === 'weekly_notes'}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Weekly Notes</span>
-              </label>
+                <button
+                  type="button"
+                  onClick={() => setMaterialCategory('assignment')}
+                  className={`p-4 border-2 rounded-lg transition text-center ${
+                    materialCategory === 'assignment'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-gray-200 hover:border-orange-300'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">📋</div>
+                  <div className="font-medium text-gray-900">Assignments</div>
+                  <div className="text-xs text-gray-500">Coursework, homework</div>
+                </button>
+              </div>
 
-              {materialCategory === 'weekly_notes' && (
-                <div className="ml-7 mt-2">
+              {/* Week Number for Notes & Lab Materials */}
+              {(materialCategory === 'notes' || materialCategory === 'lab_material') && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">
+                    Week Number (optional)
+                  </label>
                   <input
                     type="number"
-                    placeholder="Week number (e.g., 3)"
+                    placeholder="e.g., 3"
                     value={weekNumber}
                     onChange={(e) => setWeekNumber(e.target.value)}
                     min="1"
                     max="15"
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    className="w-full border border-gray-300 rounded px-3 py-2"
                   />
                 </div>
               )}
 
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value="past_paper"
-                  checked={materialCategory === 'past_paper'}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Past Paper</span>
-              </label>
-
+              {/* Year for Past Papers */}
               {materialCategory === 'past_paper' && (
-                <div className="ml-7 mt-2">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">
+                    Year (optional)
+                  </label>
                   <input
                     type="number"
-                    placeholder="Year (e.g., 2023)"
+                    placeholder="e.g., 2023"
                     value={yearNumber}
                     onChange={(e) => setYearNumber(e.target.value)}
                     min="2000"
                     max={new Date().getFullYear()}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    className="w-full border border-gray-300 rounded px-3 py-2"
                   />
                 </div>
               )}
 
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value="assignment"
-                  checked={materialCategory === 'assignment'}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Assignment</span>
-              </label>
-
+              {/* Assignment Number */}
               {materialCategory === 'assignment' && (
-                <div className="ml-7 mt-2">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">
+                    Assignment Number (optional)
+                  </label>
                   <input
                     type="number"
-                    placeholder="Assignment number (e.g., 1)"
+                    placeholder="e.g., 1"
                     value={assignmentNumber}
                     onChange={(e) => setAssignmentNumber(e.target.value)}
                     min="1"
                     max="10"
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    className="w-full border border-gray-300 rounded px-3 py-2"
                   />
                 </div>
               )}
-
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value="lab_guide"
-                  checked={materialCategory === 'lab_guide'}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Lab Guide</span>
-              </label>
-
-              <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="materialCategory"
-                  value="other"
-                  checked={materialCategory === 'other'}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span>Other</span>
-              </label>
             </div>
-          </div>
-          
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Description (optional)
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of the material..."
-              rows={3}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-          </div>
-          
+          )}
+
           {/* File Upload */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Upload File <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="file-input"
-              type="file"
-              accept=".pdf,.docx,.pptx"
-              onChange={(e) => setFile(e.target.files[0])}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Accepted formats: PDF, DOCX, PPTX (max 50MB)
-            </p>
-            {file && (
-              <p className="text-sm text-green-600 mt-2">
-                Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+          {selectedTopic && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                4. Upload File <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="file-input"
+                type="file"
+                accept=".pdf,.docx,.pptx"
+                onChange={(e) => setFile(e.target.files[0])}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Accepted formats: PDF, DOCX, PPTX (max 50MB)
               </p>
-            )}
-          </div>
-          
-          {/* Uploader Name */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Your Name (optional)
-            </label>
-            <input
-              type="text"
-              value={uploaderName}
-              onChange={(e) => setUploaderName(e.target.value)}
-              placeholder="e.g., John Kamau"
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Get recognition for contributing! Leave blank to stay anonymous.
-            </p>
-          </div>
-          
+              {file && (
+                <p className="text-sm text-green-600 mt-2">
+                  Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Material Title */}
+          {selectedTopic && file && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                5. Material Title (optional)
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Leave blank to auto-generate from file name"
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                If left blank, we'll generate a title like: "Data Structures Notes - Week 5"
+              </p>
+            </div>
+          )}
+
           {/* Upload Progress Bar */}
           {uploading && uploadProgress > 0 && (
             <div className="space-y-2">

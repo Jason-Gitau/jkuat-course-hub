@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 export default function OfflinePage() {
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     setIsOnline(navigator.onLine)
 
     const handleOnline = () => setIsOnline(true)
@@ -21,12 +23,12 @@ export default function OfflinePage() {
     }
   }, [])
 
-  if (isOnline) {
-    // If back online, redirect to home
-    if (typeof window !== 'undefined') {
+  useEffect(() => {
+    if (mounted && isOnline) {
+      // If back online, redirect to home
       window.location.href = '/'
     }
-  }
+  }, [mounted, isOnline])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center px-4">

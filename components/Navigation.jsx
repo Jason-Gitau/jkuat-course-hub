@@ -140,6 +140,13 @@ export default function Navigation() {
                       </div>
 
                       <div className="py-1">
+                        <Link
+                          href="/profile"
+                          onClick={() => setShowUserMenu(false)}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          My Profile
+                        </Link>
                         <button
                           onClick={() => {
                             setShowUserMenu(false)
@@ -225,6 +232,18 @@ export default function Navigation() {
 
             {user ? (
               <>
+                <Link
+                  href="/profile"
+                  onClick={closeMobileMenu}
+                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    isActive('/profile')
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  My Profile
+                </Link>
+
                 <Link
                   href="/upload"
                   onClick={closeMobileMenu}

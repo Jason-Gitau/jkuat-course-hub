@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { uploadFile } from '@/lib/storage/storage-manager.js'
 
 export async function POST(req) {
   // Create service role client to bypass RLS for public uploads
@@ -91,29 +92,31 @@ export async function POST(req) {
       )
     }
     
-    // Upload to Supabase Storage
-    const fileName = `${courseId}/${Date.now()}_${file.name}`
-    const { data: uploadData, error: uploadError } = await supabase
-      .storage
-      .from('course pdfs')
-      .upload(fileName, file, {
-        contentType: file.type,
-        upsert: false
-      })
+    // Convert file to buffer for compression
+    const arrayBuffer = await file.arrayBuffer()
+    const fileBuffer = Buffer.from(arrayBuffer)
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
+    // Upload using storage manager (handles compression + R2 fallback)
+    const uploadResult = await uploadFile(fileBuffer, {
+      fileName: file.name,
+      courseId: courseId,
+      contentType: file.type,
+      compressPDF: true, // Enable PDF compression
+    })
+
+    if (!uploadResult || !uploadResult.url) {
       return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
+        { error: 'Upload failed' },
         { status: 500 }
       )
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase
-      .storage
-      .from('course pdfs')
-      .getPublicUrl(fileName)
+    const { url: publicUrl, storageLocation, storagePath, fileSize, compressed, compressionStats } = uploadResult
+
+    // Log compression info
+    if (compressed) {
+      console.log('✅ PDF compressed:', compressionStats)
+    }
     
     // Parse category metadata if provided
     let parsedMetadata = null
@@ -135,7 +138,9 @@ export async function POST(req) {
         description,
         type: getFileType(file.type),
         file_url: publicUrl,
-        file_size: file.size,
+        file_size: fileSize, // Use actual uploaded file size (after compression)
+        storage_location: storageLocation, // 'supabase' or 'r2'
+        storage_path: storagePath, // Path/key in storage
         uploaded_by: uploaderName,
         upload_source: 'class_rep',
         status: 'approved', // TESTING: Auto-approve materials (bypass admin approval)

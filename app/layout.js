@@ -1,11 +1,11 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
-import InstallPrompt from "@/components/InstallPrompt";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
 import { UserProvider } from "@/lib/providers/UserProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ServiceWorkerInit from "@/components/ServiceWorkerInit";
+import InstallPrompt from "@/components/InstallPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +46,7 @@ export default function RootLayout({ children }) {
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <QueryProvider>
           <UserProvider>
