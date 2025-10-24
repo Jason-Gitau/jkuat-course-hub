@@ -8,7 +8,6 @@ import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
 import { getTopicsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
 import { STORES, getFromStore } from '@/lib/db/indexedDB'
 import MaterialCard from '@/components/MaterialCard'
-import VirtualMaterialList from '@/components/VirtualMaterialList'
 
 export default function CoursePage() {
   const params = useParams()

@@ -166,7 +166,7 @@ export default function StorageAnalyticsPage() {
                   Storage Optimization Recommended
                 </h3>
                 <p className="text-yellow-700 mb-4">
-                  You're using {storageStats.supabaseUsagePercentage}% of your Supabase free tier.
+                  You&apos;re using {storageStats.supabaseUsagePercentage}% of your Supabase free tier.
                   {migrationCandidates.count} files ({migrationCandidates.totalSizeMB} MB) can be migrated to R2 to free up space.
                 </p>
                 <div className="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm">
