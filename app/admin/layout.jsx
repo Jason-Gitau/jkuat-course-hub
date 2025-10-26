@@ -9,6 +9,10 @@ export default function AdminLayout({ children }) {
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: '📊' },
     { name: 'Pending Approvals', path: '/admin/pending', icon: '⏳' },
+    { name: 'Manage Courses', path: '/admin/courses', icon: '🎓' },
+    { name: 'Manage Topics', path: '/admin/topics', icon: '📑' },
+    { name: 'Deletion Requests', path: '/admin/deletion-requests', icon: '📋' },
+    { name: 'Trash Bin', path: '/admin/trash', icon: '🗑️' },
     { name: 'Storage Analytics', path: '/admin/storage', icon: '💾' },
   ];
 

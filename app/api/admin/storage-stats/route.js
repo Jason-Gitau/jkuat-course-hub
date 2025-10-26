@@ -35,7 +35,7 @@ export async function GET(req) {
     // Get top 10 largest files
     const { data: largestFiles } = await supabase
       .from('materials')
-      .select('id, title, file_size, storage_location, created_at, download_count, courses:course_id(course_name)')
+      .select('id, title, file_size, storage_location, created_at, download_count, courses!course_id(course_name)')
       .order('file_size', { ascending: false })
       .limit(10);
 
@@ -49,7 +49,7 @@ export async function GET(req) {
       .from('materials')
       .select(`
         file_size,
-        courses:course_id (
+        courses!course_id (
           id,
           course_name
         )

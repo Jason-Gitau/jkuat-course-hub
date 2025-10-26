@@ -2,11 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import DeletionModal from '@/components/admin/DeletionModal'
 
 export default function AdminPendingPage() {
   const [pending, setPending] = useState([])
   const [loading, setLoading] = useState(true)
-  
+  const [deletionModal, setDeletionModal] = useState({
+    isOpen: false,
+    materialId: null,
+    materialTitle: '',
+  })
+
   const supabase = createClient()
   
   useEffect(() => {
@@ -20,8 +26,8 @@ export default function AdminPendingPage() {
       .from('materials')
       .select(`
         *,
-        courses (course_name, department),
-        topics (topic_name, week_number)
+        courses!course_id (course_name, department),
+        topics!topic_id (topic_name, week_number)
       `)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -58,21 +64,27 @@ export default function AdminPendingPage() {
   async function reject(materialId) {
     const reason = prompt('Reason for rejection?')
     if (!reason) return
-    
+
     const { error } = await supabase
       .from('materials')
-      .update({ 
+      .update({
         status: 'rejected',
         rejection_reason: reason
       })
       .eq('id', materialId)
-    
+
     if (error) {
       alert('Error rejecting material')
       return
     }
-    
+
     setPending(pending.filter(m => m.id !== materialId))
+  }
+
+  function handleDeletionSuccess(result) {
+    // Remove the deleted material from the list
+    setPending(pending.filter(m => m.id !== deletionModal.materialId))
+    alert(`Material ${result.deletionType === 'soft' ? 'moved to trash' : 'permanently deleted'}!`)
   }
   
   function formatDate(dateString) {
@@ -154,7 +166,7 @@ export default function AdminPendingPage() {
                 </div>
               </div>
               
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <a
                   href={material.file_url}
                   target="_blank"
@@ -163,25 +175,45 @@ export default function AdminPendingPage() {
                 >
                   Preview File →
                 </a>
-                
+
                 <button
                   onClick={() => approve(material.id)}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium"
                 >
                   ✓ Approve
                 </button>
-                
+
                 <button
                   onClick={() => reject(material.id)}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium"
                 >
                   ✗ Reject
                 </button>
+
+                <button
+                  onClick={() => setDeletionModal({
+                    isOpen: true,
+                    materialId: material.id,
+                    materialTitle: material.title,
+                  })}
+                  className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-1"
+                >
+                  🗑️ Delete
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Deletion Modal */}
+      <DeletionModal
+        isOpen={deletionModal.isOpen}
+        onClose={() => setDeletionModal({ isOpen: false, materialId: null, materialTitle: '' })}
+        onSuccess={handleDeletionSuccess}
+        materialId={deletionModal.materialId}
+        materialTitle={deletionModal.materialTitle}
+      />
     </div>
   )
 }

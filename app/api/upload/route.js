@@ -149,10 +149,10 @@ export async function POST(req) {
         material_category,
         category_metadata,
         week_number,
-        courses:course_id (
+        courses!course_id (
           course_name
         ),
-        topics:topic_id (
+        topics!topic_id (
           topic_name,
           unit_code,
           year,

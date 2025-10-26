@@ -41,7 +41,7 @@ export default function LeaderboardPage() {
           profiles:user_id (
             full_name,
             role,
-            courses:course_id (
+            courses!course_id (
               course_name
             )
           )

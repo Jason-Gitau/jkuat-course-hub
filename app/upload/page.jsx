@@ -16,7 +16,7 @@ export default function UploadPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [uploaderName, setUploaderName] = useState('')
-  const [file, setFile] = useState(null)
+  const [files, setFiles] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [shareMessage, setShareMessage] = useState('')
@@ -25,6 +25,7 @@ export default function UploadPage() {
   const [weekNumber, setWeekNumber] = useState('')
   const [yearNumber, setYearNumber] = useState('')
   const [assignmentNumber, setAssignmentNumber] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
 
   // Autocomplete states
   const [courseSearch, setCourseSearch] = useState('')
@@ -221,6 +222,123 @@ All materials: ${siteUrl}/courses/${selectedCourse}
 Uploaded by: ${uploaderText}`
   }
 
+  // Smart filename parsing to auto-detect week/year/category
+  function parseFileName(filename) {
+    const parsed = {
+      week: null,
+      year: null,
+      assignmentNumber: null,
+      category: null
+    }
+
+    const nameLower = filename.toLowerCase()
+
+    // Detect week numbers: "week_5", "week5", "w5", etc.
+    const weekMatch = nameLower.match(/(?:week|w)[\s_-]*(\d+)/i)
+    if (weekMatch) {
+      parsed.week = weekMatch[1]
+    }
+
+    // Detect year: "2023", "2024", etc.
+    const yearMatch = nameLower.match(/(20\d{2})/)
+    if (yearMatch) {
+      parsed.year = yearMatch[1]
+    }
+
+    // Detect assignment number: "assignment_2", "assignment2", "assgn2", etc.
+    const assignmentMatch = nameLower.match(/(?:assignment|assgn|hw)[\s_-]*(\d+)/i)
+    if (assignmentMatch) {
+      parsed.assignmentNumber = assignmentMatch[1]
+    }
+
+    // Detect category from filename
+    if (nameLower.includes('note') || nameLower.includes('lecture')) {
+      parsed.category = 'notes'
+    } else if (nameLower.includes('past') || nameLower.includes('exam') || nameLower.includes('paper')) {
+      parsed.category = 'past_paper'
+    } else if (nameLower.includes('lab') || nameLower.includes('practical')) {
+      parsed.category = 'lab_material'
+    } else if (nameLower.includes('assignment') || nameLower.includes('homework') || nameLower.includes('hw')) {
+      parsed.category = 'assignment'
+    }
+
+    return parsed
+  }
+
+  // Get file icon based on file type
+  function getFileIcon(mimeType) {
+    if (mimeType.startsWith('image/')) return '🖼️'
+    if (mimeType.includes('pdf')) return '📄'
+    if (mimeType.includes('word') || mimeType.includes('docx')) return '📝'
+    if (mimeType.includes('powerpoint') || mimeType.includes('pptx')) return '📊'
+    return '📎'
+  }
+
+  // Handle file selection (from input or drag-drop)
+  function handleFileSelect(e) {
+    const selectedFiles = Array.from(e.target.files || [])
+    if (selectedFiles.length === 0) return
+
+    // Auto-detect from first file if category not set
+    if (!materialCategory && selectedFiles.length > 0) {
+      const parsed = parseFileName(selectedFiles[0].name)
+      if (parsed.category) setMaterialCategory(parsed.category)
+      if (parsed.week) setWeekNumber(parsed.week)
+      if (parsed.year) setYearNumber(parsed.year)
+      if (parsed.assignmentNumber) setAssignmentNumber(parsed.assignmentNumber)
+    }
+
+    setFiles(prev => [...prev, ...selectedFiles])
+    setError('')
+  }
+
+  // Remove a file from selection
+  function removeFile(index) {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Drag & drop handlers
+  function handleDragEnter(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only set false if leaving the drop zone itself
+    if (e.currentTarget === e.target) {
+      setIsDragging(false)
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  function handleDrop(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const droppedFiles = Array.from(e.dataTransfer.files || [])
+    if (droppedFiles.length === 0) return
+
+    // Auto-detect from first file if category not set
+    if (!materialCategory && droppedFiles.length > 0) {
+      const parsed = parseFileName(droppedFiles[0].name)
+      if (parsed.category) setMaterialCategory(parsed.category)
+      if (parsed.week) setWeekNumber(parsed.week)
+      if (parsed.year) setYearNumber(parsed.year)
+      if (parsed.assignmentNumber) setAssignmentNumber(parsed.assignmentNumber)
+    }
+
+    setFiles(prev => [...prev, ...droppedFiles])
+    setError('')
+  }
+
   async function handleCreateCourse() {
     if (!newCourseName || !newCourseDepartment) {
       setError('Please fill in all course fields')
@@ -319,196 +437,28 @@ Uploaded by: ${uploaderText}`
     }
   }
   
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setShareMessage('')
-    setUploadProgress(0)
-
-    // Validate required fields: file, course, unit, material type
-    if (!file || !selectedCourse || !selectedTopic || !materialCategory) {
-      setError('Please fill in all required fields (Course, Unit, Material Type, and File)')
-      return
-    }
-
-    setUploading(true)
-
-    try {
-      // Auto-generate title if not provided
-      let finalTitle = title
-      if (!finalTitle || finalTitle.trim() === '') {
-        // Find selected topic details
-        const selectedTopicData = topics.find(t => t.id === selectedTopic)
-
-        // Build title: [Category] - [Unit Code] - [Metadata]
-        const categoryNames = {
-          'notes': 'Notes',
-          'past_paper': 'Past Paper',
-          'lab_material': 'Lab Material',
-          'assignment': 'Assignment'
-        }
-
-        const categoryName = categoryNames[materialCategory] || 'Material'
-        const unitCode = selectedTopicData?.unit_code || 'Unit'
-
-        let metadata = ''
-        if (materialCategory === 'notes' && weekNumber) {
-          metadata = ` - Week ${weekNumber}`
-        } else if (materialCategory === 'lab_material' && weekNumber) {
-          metadata = ` - Week ${weekNumber}`
-        } else if (materialCategory === 'past_paper' && yearNumber) {
-          metadata = ` - ${yearNumber}`
-        } else if (materialCategory === 'assignment' && assignmentNumber) {
-          metadata = ` - Assignment ${assignmentNumber}`
-        }
-
-        finalTitle = `${unitCode} ${categoryName}${metadata}`
-      }
-
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('course_id', selectedCourse)
-      formData.append('topic_id', selectedTopic)
-      formData.append('title', finalTitle)
-      formData.append('description', description)
-      formData.append('uploader_name', uploaderName)
-
-      // Add week number for weekly materials organization
-      if (materialWeekNumber) {
-        formData.append('week_number', materialWeekNumber)
-      }
-
-      // Add material category if selected
-      if (materialCategory) {
-        formData.append('material_category', materialCategory)
-
-        // Build category metadata based on category type
-        const metadata = {}
-        if ((materialCategory === 'notes' || materialCategory === 'lab_material') && weekNumber) {
-          metadata.week = parseInt(weekNumber)
-        }
-        if (materialCategory === 'past_paper' && yearNumber) {
-          metadata.year = parseInt(yearNumber)
-        }
-        if (materialCategory === 'assignment' && assignmentNumber) {
-          metadata.assignment_number = parseInt(assignmentNumber)
-        }
-
-        if (Object.keys(metadata).length > 0) {
-          formData.append('category_metadata', JSON.stringify(metadata))
-        }
-      }
-
-      // Show initial progress
-      setUploadProgress(10)
-
-      // Create XMLHttpRequest for upload progress tracking
-      const xhr = new XMLHttpRequest()
-
-      // Track upload progress
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = Math.round((e.loaded / e.total) * 90) // Reserve 10% for processing
-          setUploadProgress(percentComplete)
-        }
-      })
-
-      // Handle completion
-      const uploadPromise = new Promise((resolve, reject) => {
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress(100)
-            resolve(JSON.parse(xhr.responseText))
-          } else {
-            reject(new Error(JSON.parse(xhr.responseText).error || 'Upload failed'))
-          }
-        })
-        xhr.addEventListener('error', () => reject(new Error('Network error')))
-      })
-
-      // Send request
-      xhr.open('POST', '/api/upload')
-      xhr.send(formData)
-
-      const result = await uploadPromise
-
-      if (!result.success) {
-        throw new Error(result.error || 'Upload failed')
-      }
-
-      // Generate share message client-side (instant, non-blocking)
-      const message = generateShareMessage(result.material)
-      setShareMessage(message)
-
-      // OFFLINE-FIRST: Immediately sync uploader's IndexedDB
-      console.log('💾 Syncing uploaded material to IndexedDB...')
-      try {
-        await syncMaterialsForCourse(selectedCourse)
-        console.log('✅ Material synced to IndexedDB')
-      } catch (syncError) {
-        console.warn('⚠️ Failed to sync to IndexedDB:', syncError)
-        // Don't block upload success - this is just a cache update
-      }
-
-      // Reset form
-      setFile(null)
-      setTitle('')
-      setDescription('')
-      setSelectedTopic('')
-      setMaterialCategory('')
-      setMaterialWeekNumber('')
-      setWeekNumber('')
-      setYearNumber('')
-      setAssignmentNumber('')
-      setUploadProgress(0)
-      const fileInput = document.getElementById('file-input')
-      if (fileInput) fileInput.value = ''
-
-    } catch (err) {
-      setError(err.message)
-      setUploadProgress(0)
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  // New function: Add to queue instead of uploading immediately
-  async function handleAddToQueue(e) {
+  // Upload all selected files to queue
+  async function handleUpload(e) {
     e.preventDefault()
     setError('')
     setQueuedToast('')
 
-    // Validate required fields: file, course, unit, material type
-    if (!file || !selectedCourse || !selectedTopic || !materialCategory) {
+    // Validate required fields: files, course, unit, material type
+    if (files.length === 0 || !selectedCourse || !selectedTopic || !materialCategory) {
       setError('Please fill in all required fields (Course, Unit, Material Type, and File)')
       return
     }
 
     try {
-      // Auto-generate title if not provided (same logic as handleSubmit)
-      let finalTitle = title
-      if (!finalTitle || finalTitle.trim() === '') {
-        const selectedTopicData = topics.find(t => t.id === selectedTopic)
-        const categoryNames = {
-          'notes': 'Notes',
-          'past_paper': 'Past Paper',
-          'lab_material': 'Lab Material',
-          'assignment': 'Assignment'
-        }
-        const categoryName = categoryNames[materialCategory] || 'Material'
-        const unitCode = selectedTopicData?.unit_code || 'Unit'
-        let metadata = ''
-        if (materialCategory === 'notes' && weekNumber) {
-          metadata = ` - Week ${weekNumber}`
-        } else if (materialCategory === 'lab_material' && weekNumber) {
-          metadata = ` - Week ${weekNumber}`
-        } else if (materialCategory === 'past_paper' && yearNumber) {
-          metadata = ` - ${yearNumber}`
-        } else if (materialCategory === 'assignment' && assignmentNumber) {
-          metadata = ` - Assignment ${assignmentNumber}`
-        }
-        finalTitle = `${unitCode} ${categoryName}${metadata}`
+      const selectedTopicData = topics.find(t => t.id === selectedTopic)
+      const categoryNames = {
+        'notes': 'Notes',
+        'past_paper': 'Past Paper',
+        'lab_material': 'Lab Material',
+        'assignment': 'Assignment'
       }
+      const categoryName = categoryNames[materialCategory] || 'Material'
+      const unitCode = selectedTopicData?.unit_code || 'Unit'
 
       // Build category metadata
       const categoryMetadata = {}
@@ -522,40 +472,63 @@ Uploaded by: ${uploaderText}`
         categoryMetadata.assignment_number = parseInt(assignmentNumber)
       }
 
-      // Prepare metadata object
-      const metadata = {
-        courseId: selectedCourse,
-        topicId: selectedTopic,
-        title: finalTitle,
-        description: description || null,
-        category: materialCategory,
-        categoryMetadata: Object.keys(categoryMetadata).length > 0 ? categoryMetadata : null,
-        weekNumber: materialWeekNumber || null,
-        uploaderName: uploaderName || null,
-        userId: user?.id || null,
-        uploaderYear: profile?.year || null,
-        uploaderCourseId: profile?.course_id || null,
+      // Queue all files
+      const uploadPromises = files.map(async (file) => {
+        // Auto-generate title for each file if not provided
+        let finalTitle = title
+        if (!finalTitle || finalTitle.trim() === '') {
+          let metadata = ''
+          if (materialCategory === 'notes' && weekNumber) {
+            metadata = ` - Week ${weekNumber}`
+          } else if (materialCategory === 'lab_material' && weekNumber) {
+            metadata = ` - Week ${weekNumber}`
+          } else if (materialCategory === 'past_paper' && yearNumber) {
+            metadata = ` - ${yearNumber}`
+          } else if (materialCategory === 'assignment' && assignmentNumber) {
+            metadata = ` - Assignment ${assignmentNumber}`
+          }
+          finalTitle = `${unitCode} ${categoryName}${metadata}`
+        }
+
+        // Prepare metadata object for this file
+        const metadata = {
+          courseId: selectedCourse,
+          topicId: selectedTopic,
+          title: finalTitle,
+          description: description || null,
+          category: materialCategory,
+          categoryMetadata: Object.keys(categoryMetadata).length > 0 ? categoryMetadata : null,
+          weekNumber: materialWeekNumber || null,
+          uploaderName: uploaderName || null,
+          userId: user?.id || null,
+          uploaderYear: profile?.year || null,
+          uploaderCourseId: profile?.course_id || null,
+        }
+
+        // Add to queue
+        return addToUploadQueue(file, metadata)
+      })
+
+      await Promise.all(uploadPromises)
+
+      // Show success toast
+      if (files.length === 1) {
+        setQueuedToast(`"${files[0].name}" added to upload queue!`)
+      } else {
+        setQueuedToast(`${files.length} files added to upload queue!`)
       }
-
-      // Add to queue
-      await addToUploadQueue(file, metadata)
-
-      // Show success toast with the final title (either user-provided or auto-generated)
-      setQueuedToast(`"${finalTitle}" added to upload queue!`)
       setTimeout(() => setQueuedToast(''), 3000)
 
-      // Reset form
-      setFile(null)
+      // SMART RESET: Keep course, unit, category - only reset files and title
+      setFiles([])
       setTitle('')
       setDescription('')
-      setSelectedTopic('')
-      setMaterialCategory('')
-      setMaterialWeekNumber('')
-      setWeekNumber('')
-      setYearNumber('')
-      setAssignmentNumber('')
+      // DON'T reset: selectedCourse, courseSearch, selectedTopic, unitSearch, materialCategory, weekNumber, yearNumber, assignmentNumber
+
       const fileInput = document.getElementById('file-input')
       if (fileInput) fileInput.value = ''
+      const folderInput = document.getElementById('folder-input')
+      if (folderInput) folderInput.value = ''
 
     } catch (err) {
       setError(err.message)
@@ -571,7 +544,7 @@ Uploaded by: ${uploaderText}`
     <div className="max-w-2xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-2">Upload Course Material</h1>
       <p className="text-gray-600 mb-6">
-        Share materials with your classmates. Upload immediately or add to queue for background processing.
+        Share materials with your classmates. Drag & drop files, upload folders, or select multiple files at once. Uploads process in the background so you can keep working!
       </p>
 
       {/* Queued Toast Notification */}
@@ -636,7 +609,7 @@ Uploaded by: ${uploaderText}`
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
@@ -1057,33 +1030,130 @@ Uploaded by: ${uploaderText}`
             </div>
           )}
 
-          {/* File Upload */}
+          {/* File Upload - Drag & Drop Zone */}
           {selectedTopic && (
             <div>
               <label className="block text-sm font-medium mb-2">
-                4. Upload File <span className="text-red-500">*</span>
+                4. Upload Files <span className="text-red-500">*</span>
               </label>
-              <input
-                id="file-input"
-                type="file"
-                accept=".pdf,.docx,.pptx"
-                onChange={(e) => setFile(e.target.files[0])}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Accepted formats: PDF, DOCX, PPTX (max 50MB)
+
+              {/* Drag & Drop Area */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer ${
+                  isDragging
+                    ? 'border-blue-500 bg-blue-50 scale-105'
+                    : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  id="file-input"
+                  type="file"
+                  multiple
+                  accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png,.gif,.webp"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <label htmlFor="file-input" className="cursor-pointer">
+                  <div className="text-5xl mb-3">
+                    {isDragging ? '⬇️' : '📁'}
+                  </div>
+                  <p className="text-lg font-medium text-gray-700 mb-2">
+                    {isDragging ? 'Drop files here' : 'Drag & drop files here'}
+                  </p>
+                  <p className="text-sm text-gray-500 mb-3">or click to browse</p>
+                  <div className="inline-flex gap-2 text-xs text-gray-600">
+                    <span className="bg-gray-100 px-2 py-1 rounded">PDF</span>
+                    <span className="bg-gray-100 px-2 py-1 rounded">DOCX</span>
+                    <span className="bg-gray-100 px-2 py-1 rounded">PPTX</span>
+                    <span className="bg-gray-100 px-2 py-1 rounded">Images</span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Folder Upload Button */}
+              <div className="mt-3 flex gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('folder-input').click()}
+                  className="text-sm px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center gap-2"
+                >
+                  <span>📂</span>
+                  Upload Folder
+                </button>
+                <input
+                  id="folder-input"
+                  type="file"
+                  webkitdirectory="true"
+                  directory="true"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </div>
+
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Max 50MB per file • Multiple files supported
               </p>
-              {file && (
-                <p className="text-sm text-green-600 mt-2">
-                  Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                </p>
+
+              {/* Selected Files List */}
+              {files.length > 0 && (
+                <div className="mt-4 border rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900">
+                      Ready to Upload ({files.length} {files.length === 1 ? 'file' : 'files'}):
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setFiles([])}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {files.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-white p-3 rounded border border-gray-200 hover:border-blue-300 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <span className="text-2xl flex-shrink-0">{getFileIcon(file.type)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="ml-2 text-red-500 hover:text-red-700 text-xl font-bold flex-shrink-0"
+                          title="Remove file"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-600">
+                      Total size: {(files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           )}
 
           {/* Material Title */}
-          {selectedTopic && file && (
+          {selectedTopic && files.length > 0 && (
             <div>
               <label className="block text-sm font-medium mb-2">
                 5. Material Title (optional)
@@ -1096,66 +1166,64 @@ Uploaded by: ${uploaderText}`
                 className="w-full border border-gray-300 rounded px-3 py-2"
               />
               <p className="text-xs text-gray-500 mt-1">
-                If left blank, we'll generate a title like: "Data Structures Notes - Week 5"
+                If left blank, we'll generate a title like: "CVE 2101 Notes - Week 5"
               </p>
             </div>
           )}
 
-          {/* Upload Progress Bar */}
-          {uploading && uploadProgress > 0 && (
-            <div className="space-y-2">
-              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full transition-all duration-300 ease-out"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-              <p className="text-sm text-center text-gray-600">
-                {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : 'Processing...'}
-              </p>
-            </div>
-          )}
-
-          {/* Submit Buttons */}
-          <div className="flex gap-3">
+          {/* Upload Button */}
+          {files.length > 0 && (
             <button
               type="button"
-              onClick={handleAddToQueue}
+              onClick={handleUpload}
               disabled={uploading}
-              className="flex-1 bg-green-600 text-white py-3 rounded font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              <span>📋</span>
-              Add to Queue
-            </button>
-            <button
-              type="submit"
-              disabled={uploading}
-              className="flex-1 bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-lg shadow-lg hover:shadow-xl"
             >
               {uploading ? (
                 <>
                   <span className="animate-spin">⏳</span>
-                  Uploading...
+                  Processing...
                 </>
               ) : (
                 <>
                   <span>⬆️</span>
-                  Upload Now
+                  Upload {files.length > 1 ? `All ${files.length} Files` : 'File'}
                 </>
               )}
             </button>
-          </div>
+          )}
         </form>
       )}
       
-      <div className="mt-8 p-4 bg-gray-50 rounded border border-gray-200">
-        <h3 className="font-semibold mb-2">Guidelines:</h3>
-        <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-          <li>Only upload materials you have permission to share</li>
-          <li><strong>Upload Now:</strong> Immediate upload (blocks until complete)</li>
-          <li><strong>Add to Queue:</strong> Queue multiple files for background processing (instant feedback!)</li>
-          <li>Make titles clear and descriptive</li>
-          <li>Tag with correct course, unit, and week for easy discovery</li>
+      <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+        <h3 className="font-semibold mb-3 text-gray-900 flex items-center gap-2">
+          <span>💡</span> Quick Tips:
+        </h3>
+        <ul className="text-sm text-gray-700 space-y-2">
+          <li className="flex items-start gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span><strong>Multi-file upload:</strong> Select or drag multiple files at once</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span><strong>Folder upload:</strong> Upload entire folders with one click</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span><strong>Image support:</strong> Upload photos of notes or scanned documents</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span><strong>Smart persistence:</strong> Course/unit selection stays after upload - perfect for uploading multiple files to the same unit</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span><strong>Background processing:</strong> Files queue automatically - you can navigate away and uploads continue</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-blue-600 font-bold">ℹ️</span>
+            <span>Only upload materials you have permission to share</span>
+          </li>
         </ul>
       </div>
     </div>

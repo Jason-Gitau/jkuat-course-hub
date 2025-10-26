@@ -52,7 +52,7 @@ export function UserProvider({ children }) {
         .from('profiles')
         .select(`
           *,
-          courses:course_id (
+          courses!course_id (
             id,
             course_name,
             department,

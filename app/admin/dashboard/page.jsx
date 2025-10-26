@@ -148,7 +148,7 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
             href="/admin/pending"
             className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition"
@@ -157,6 +157,26 @@ export default function AdminDashboard() {
             <div>
               <p className="font-semibold text-gray-900">Review Materials</p>
               <p className="text-sm text-gray-600">{materialStats.byStatus.pending} pending</p>
+            </div>
+          </Link>
+          <Link
+            href="/admin/deletion-requests"
+            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition"
+          >
+            <span className="text-2xl">📋</span>
+            <div>
+              <p className="font-semibold text-gray-900">Deletion Requests</p>
+              <p className="text-sm text-gray-600">Review requests</p>
+            </div>
+          </Link>
+          <Link
+            href="/admin/trash"
+            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-red-500 hover:bg-red-50 transition"
+          >
+            <span className="text-2xl">🗑️</span>
+            <div>
+              <p className="font-semibold text-gray-900">Trash Bin</p>
+              <p className="text-sm text-gray-600">30-day recovery</p>
             </div>
           </Link>
           <Link

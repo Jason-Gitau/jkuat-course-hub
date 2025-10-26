@@ -1,4 +1,3 @@
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
@@ -6,16 +5,6 @@ import { UserProvider } from "@/lib/providers/UserProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ServiceWorkerInit from "@/components/ServiceWorkerInit";
 import InstallPrompt from "@/components/InstallPrompt";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata = {
   title: "JKUAT Course Hub",
@@ -45,7 +34,7 @@ export default function RootLayout({ children }) {
         <meta name="theme-color" content="#2563eb" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className="antialiased"
         suppressHydrationWarning
       >
         <QueryProvider>
