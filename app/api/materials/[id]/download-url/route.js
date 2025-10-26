@@ -5,14 +5,16 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { getFileUrl } from '@/lib/storage/storage-manager';
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Get material from database
-    const supabase = createClient();
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
     const { data: material, error } = await supabase
       .from('materials')
       .select('id, storage_location, storage_path, file_url')

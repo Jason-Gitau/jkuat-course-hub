@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
@@ -23,12 +24,13 @@ async function parsePDF(buffer) {
 export async function POST(request) {
   try {
     const { materialId } = await request.json()
-    const supabase = createClient()
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
     
-    // Get material details
+    // Get material details (only fields we need for better performance)
     const { data: material } = await supabase
       .from('materials')
-      .select('*')
+      .select('id, type, file_url')
       .eq('id', materialId)
       .single()
     

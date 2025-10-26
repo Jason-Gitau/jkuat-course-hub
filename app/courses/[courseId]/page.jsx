@@ -46,113 +46,119 @@ export default function CoursePage() {
       try {
         setCourseLoading(true)
 
-        // OFFLINE-FIRST: Load course from IndexedDB first (INSTANT!)
-        let courseData = null
+        // PARALLEL OPTIMIZATION: Load course and topics from IndexedDB in parallel
+        const [courseFromCache, topicsFromCache] = await Promise.all([
+          getFromStore(STORES.COURSES, courseId).catch(err => {
+            console.warn('IndexedDB not available for course:', err)
+            return null
+          }),
+          getTopicsForCourse(courseId).catch(err => {
+            console.warn('IndexedDB not available for topics:', err)
+            return { success: false, data: [], isStale: true }
+          })
+        ])
 
-        try {
-          courseData = await getFromStore(STORES.COURSES, courseId)
-        } catch (indexedDBError) {
-          console.warn('IndexedDB not available:', indexedDBError)
-          // Continue to Supabase fallback
-        }
+        const hasCachedCourse = Boolean(courseFromCache)
+        const hasCachedTopics = topicsFromCache.success && topicsFromCache.data.length > 0
 
-        if (courseData) {
+        if (hasCachedCourse) {
           // Got course from IndexedDB - show it immediately
-          setCourse(courseData)
+          setCourse(courseFromCache)
           setCourseLoading(false)
           console.log('✅ Course loaded from IndexedDB (instant)')
+        }
 
-          // Background sync if stale (>30 mins)
-          const isOnline = navigator.onLine
-          const isStale = courseData._syncedAt
-            ? Date.now() - courseData._syncedAt > 30 * 60 * 1000
-            : true
+        if (hasCachedTopics) {
+          // Got topics from IndexedDB - show them immediately
+          setTopics(topicsFromCache.data)
+          console.log('✅ Topics loaded from IndexedDB (instant)')
+        }
 
-          if (isStale && isOnline) {
-            console.log('🔄 Background syncing course data...')
-            try {
-              const syncResult = await syncCourses()
-              if (syncResult.success) {
-                // Get the updated course
-                const updatedCourse = syncResult.data.find(c => c.id === courseId)
-                if (updatedCourse) {
-                  setCourse(updatedCourse)
-                  console.log('✅ Course data synced in background')
-                }
-              }
-            } catch (syncError) {
-              console.warn('Background sync failed:', syncError)
-              // Not critical - we already have cached data
-            }
+        // Check if we need to sync/fetch data
+        const isOnline = navigator.onLine
+        const needsCourseSync = !hasCachedCourse || (
+          courseFromCache._syncedAt &&
+          Date.now() - courseFromCache._syncedAt > 30 * 60 * 1000
+        )
+        const needsTopicsSync = !hasCachedTopics || topicsFromCache.isStale
+
+        // PARALLEL OPTIMIZATION: Sync/fetch course and topics in parallel if needed
+        if (isOnline && (needsCourseSync || needsTopicsSync)) {
+          console.log('🔄 Syncing data in parallel...')
+
+          const syncPromises = []
+
+          if (needsCourseSync && !hasCachedCourse) {
+            // First visit - fetch course from Supabase
+            syncPromises.push(
+              supabase
+                .from('courses')
+                .select('id, course_name, description, department')
+                .eq('id', courseId)
+                .single()
+                .then(({ data, error }) => {
+                  if (error) throw error
+                  setCourse(data)
+                  setCourseLoading(false)
+                  console.log('✅ Course fetched from Supabase')
+                  return data
+                })
+            )
+          } else if (needsCourseSync) {
+            // Background sync
+            syncPromises.push(
+              syncCourses()
+                .then(result => {
+                  if (result.success) {
+                    const updatedCourse = result.data.find(c => c.id === courseId)
+                    if (updatedCourse) {
+                      setCourse(updatedCourse)
+                      console.log('✅ Course synced in background')
+                    }
+                  }
+                })
+                .catch(err => console.warn('Course sync failed:', err))
+            )
           }
-        } else {
-          // Course not in IndexedDB - fetch from Supabase and cache it
-          console.log('📥 Fetching course from Supabase (first visit)...')
-          const { data: supabaseCourse, error } = await supabase
-            .from('courses')
-            .select('id, course_name, description, department')
-            .eq('id', courseId)
-            .single()
 
-          if (error) {
-            console.error('Error fetching course:', error)
+          if (needsTopicsSync) {
+            syncPromises.push(
+              syncTopicsForCourse(courseId)
+                .then(result => {
+                  if (result.success) {
+                    setTopics(result.data)
+                    console.log('✅ Topics synced')
+                  } else {
+                    if (!hasCachedTopics) setTopics([])
+                  }
+                })
+                .catch(err => {
+                  console.error('Topics sync failed:', err)
+                  if (!hasCachedTopics) setTopics([])
+                })
+            )
+          }
+
+          // Execute all syncs in parallel
+          if (syncPromises.length > 0) {
+            await Promise.allSettled(syncPromises)
+          }
+
+          // Cache courses in background (non-blocking)
+          if (!hasCachedCourse) {
+            syncCourses().catch(err => console.warn('Failed to cache courses:', err))
+          }
+        } else if (!hasCachedCourse || !hasCachedTopics) {
+          // Offline and missing data
+          if (!hasCachedCourse) {
             setCourse(null)
             setCourseLoading(false)
-          } else if (supabaseCourse) {
-            setCourse(supabaseCourse)
-            setCourseLoading(false)
-
-            // Sync all courses to cache this one (non-blocking)
-            try {
-              console.log('💾 Caching course for future visits...')
-              await syncCourses()
-            } catch (cacheError) {
-              console.warn('Failed to cache courses:', cacheError)
-              // Not critical - page still works
-            }
-          } else {
-            // No course found
-            setCourse(null)
-            setCourseLoading(false)
+          }
+          if (!hasCachedTopics) {
+            setTopics([])
           }
         }
 
-        // OFFLINE-FIRST: Load topics from IndexedDB
-        try {
-          const topicsResult = await getTopicsForCourse(courseId)
-
-          if (topicsResult.success && topicsResult.data.length > 0) {
-            // Got topics from IndexedDB
-            setTopics(topicsResult.data)
-
-            // Background sync if stale
-            const isOnline = navigator.onLine
-            if (topicsResult.isStale && isOnline) {
-              console.log('🔄 Background syncing topics...')
-              try {
-                const syncResult = await syncTopicsForCourse(courseId)
-                if (syncResult.success) {
-                  setTopics(syncResult.data)
-                  console.log('✅ Topics synced')
-                }
-              } catch (syncError) {
-                console.warn('Topic sync failed:', syncError)
-              }
-            }
-          } else {
-            // No topics in IndexedDB, fetch from Supabase
-            console.log('📥 Fetching topics from Supabase...')
-            const syncResult = await syncTopicsForCourse(courseId)
-            if (syncResult.success) {
-              setTopics(syncResult.data)
-            } else {
-              setTopics([])
-            }
-          }
-        } catch (topicsError) {
-          console.error('Error loading topics:', topicsError)
-          setTopics([])
-        }
       } catch (error) {
         console.error('Critical error loading course data:', error)
         setCourse(null)

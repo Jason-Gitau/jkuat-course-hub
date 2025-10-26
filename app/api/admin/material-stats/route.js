@@ -25,120 +25,119 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Get all materials
-    const { data: allMaterials, error: materialsError } = await supabase
-      .from('materials')
-      .select(`
-        id,
-        title,
-        status,
-        created_at,
-        download_count,
-        view_count,
-        file_size,
-        course_id,
-        courses!materials_course_id_fkey (course_name)
-      `);
+    // Execute all queries in parallel for better performance
+    const [
+      statusCountsResult,
+      totalCountResult,
+      uploadTrendsResult,
+      popularMaterialsResult,
+      mostViewedResult,
+      recentUploadsResult,
+      topCoursesResult,
+      engagementResult
+    ] = await Promise.all([
+      // 1. Count by status using SQL aggregation
+      supabase.rpc('get_material_status_counts'),
 
-    if (materialsError) throw materialsError;
+      // 2. Total materials count
+      supabase.from('materials').select('*', { count: 'exact', head: true }),
 
-    // Calculate statistics
-    const totalMaterials = allMaterials.length;
-    const approved = allMaterials.filter(m => m.status === 'approved').length;
-    const pending = allMaterials.filter(m => m.status === 'pending').length;
-    const rejected = allMaterials.filter(m => m.status === 'rejected').length;
+      // 3. Upload trends (last 7 days) - use SQL date functions
+      supabase.rpc('get_upload_trends', { days: 7 }),
 
-    // Upload trends (last 7 days)
-    const uploadTrendsData = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
+      // 4. Most popular materials (by downloads)
+      supabase
+        .from('materials')
+        .select('id, title, download_count, view_count, courses!materials_course_id_fkey(course_name)')
+        .eq('status', 'approved')
+        .order('download_count', { ascending: false, nullsFirst: false })
+        .limit(5),
 
-      const nextDate = new Date(date);
-      nextDate.setDate(nextDate.getDate() + 1);
+      // 5. Most viewed materials
+      supabase
+        .from('materials')
+        .select('id, title, view_count, download_count, courses!materials_course_id_fkey(course_name)')
+        .eq('status', 'approved')
+        .order('view_count', { ascending: false, nullsFirst: false })
+        .limit(5),
 
-      const uploadsOnDay = allMaterials.filter(material => {
-        const materialDate = new Date(material.created_at);
-        return materialDate >= date && materialDate < nextDate;
-      }).length;
+      // 6. Recent uploads
+      supabase
+        .from('materials')
+        .select('id, title, status, created_at, courses!materials_course_id_fkey(course_name)')
+        .order('created_at', { ascending: false })
+        .limit(5),
 
-      uploadTrendsData.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        uploads: uploadsOnDay
-      });
-    }
+      // 7. Top courses by material count
+      supabase.rpc('get_top_courses_by_materials', { limit_count: 5 }),
 
-    // Most popular materials (by downloads)
-    const popularMaterials = allMaterials
-      .filter(m => m.status === 'approved')
-      .sort((a, b) => (b.download_count || 0) - (a.download_count || 0))
-      .slice(0, 5)
-      .map(m => ({
-        id: m.id,
-        title: m.title,
-        downloads: m.download_count || 0,
-        views: m.view_count || 0,
-        course: m.courses?.course_name || 'Unknown'
-      }));
+      // 8. Total engagement metrics
+      supabase.rpc('get_total_engagement')
+    ]);
 
-    // Most viewed materials
-    const mostViewed = allMaterials
-      .filter(m => m.status === 'approved')
-      .sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
-      .slice(0, 5)
-      .map(m => ({
-        id: m.id,
-        title: m.title,
-        views: m.view_count || 0,
-        downloads: m.download_count || 0,
-        course: m.courses?.course_name || 'Unknown'
-      }));
+    // Check for errors
+    if (statusCountsResult.error) throw statusCountsResult.error;
+    if (totalCountResult.error) throw totalCountResult.error;
+    if (uploadTrendsResult.error) throw uploadTrendsResult.error;
+    if (popularMaterialsResult.error) throw popularMaterialsResult.error;
+    if (mostViewedResult.error) throw mostViewedResult.error;
+    if (recentUploadsResult.error) throw recentUploadsResult.error;
+    if (topCoursesResult.error) throw topCoursesResult.error;
+    if (engagementResult.error) throw engagementResult.error;
 
-    // Recent uploads (last 5)
-    const recentUploads = allMaterials
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 5)
-      .map(m => ({
-        id: m.id,
-        title: m.title,
-        status: m.status,
-        created_at: m.created_at,
-        course: m.courses?.course_name || 'Unknown'
-      }));
+    // Extract status counts
+    const statusCounts = statusCountsResult.data || [];
+    const approved = statusCounts.find(s => s.status === 'approved')?.count || 0;
+    const pending = statusCounts.find(s => s.status === 'pending')?.count || 0;
+    const rejected = statusCounts.find(s => s.status === 'rejected')?.count || 0;
+    const totalMaterials = totalCountResult.count || 0;
 
-    // Materials by course
-    const materialsByCourse = allMaterials
-      .filter(m => m.status === 'approved')
-      .reduce((acc, material) => {
-        const courseName = material.courses?.course_name || 'Unknown';
-        if (!acc[courseName]) {
-          acc[courseName] = {
-            course: courseName,
-            count: 0,
-            totalSize: 0,
-            totalDownloads: 0,
-            totalViews: 0
-          };
-        }
-        acc[courseName].count++;
-        acc[courseName].totalSize += material.file_size || 0;
-        acc[courseName].totalDownloads += material.download_count || 0;
-        acc[courseName].totalViews += material.view_count || 0;
-        return acc;
-      }, {});
+    // Format upload trends data
+    const uploadTrendsData = (uploadTrendsResult.data || []).map(day => ({
+      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      uploads: day.count || 0
+    }));
 
-    const topCourses = Object.values(materialsByCourse)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5)
-      .map(course => ({
-        ...course,
-        totalSizeMB: parseFloat((course.totalSize / (1024 * 1024)).toFixed(2))
-      }));
+    // Format popular materials
+    const popularMaterials = (popularMaterialsResult.data || []).map(m => ({
+      id: m.id,
+      title: m.title,
+      downloads: m.download_count || 0,
+      views: m.view_count || 0,
+      course: m.courses?.course_name || 'Unknown'
+    }));
 
-    // Total engagement
-    const totalDownloads = allMaterials.reduce((sum, m) => sum + (m.download_count || 0), 0);
-    const totalViews = allMaterials.reduce((sum, m) => sum + (m.view_count || 0), 0);
+    // Format most viewed
+    const mostViewed = (mostViewedResult.data || []).map(m => ({
+      id: m.id,
+      title: m.title,
+      views: m.view_count || 0,
+      downloads: m.download_count || 0,
+      course: m.courses?.course_name || 'Unknown'
+    }));
+
+    // Format recent uploads
+    const recentUploads = (recentUploadsResult.data || []).map(m => ({
+      id: m.id,
+      title: m.title,
+      status: m.status,
+      created_at: m.created_at,
+      course: m.courses?.course_name || 'Unknown'
+    }));
+
+    // Format top courses (already aggregated by RPC)
+    const topCourses = (topCoursesResult.data || []).map(course => ({
+      course: course.course_name,
+      count: course.material_count,
+      totalSizeMB: parseFloat((course.total_size / (1024 * 1024)).toFixed(2)),
+      totalDownloads: course.total_downloads,
+      totalViews: course.total_views
+    }));
+
+    // Extract engagement metrics
+    const engagementData = engagementResult.data?.[0] || {};
+    const totalDownloads = engagementData.total_downloads || 0;
+    const totalViews = engagementData.total_views || 0;
 
     return NextResponse.json({
       success: true,

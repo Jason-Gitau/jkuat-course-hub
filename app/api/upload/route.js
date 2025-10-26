@@ -1,19 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { uploadFile } from '@/lib/storage/storage-manager.js'
+import { getServiceRoleClient } from '@/lib/supabase/server.js'
 
 export async function POST(req) {
-  // Create service role client to bypass RLS for public uploads
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
-    }
-  )
+  // Use centralized service role client for better connection pooling
+  const supabase = getServiceRoleClient()
 
   try {
     const formData = await req.formData()

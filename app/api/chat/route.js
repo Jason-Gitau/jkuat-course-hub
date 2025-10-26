@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
@@ -36,7 +37,8 @@ function getRedis() {
 export async function POST(request) {
   try {
     const { question, courseId } = await request.json()
-    const supabase = createClient()
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
     
     // Check cache first
     const redisClient = getRedis()
