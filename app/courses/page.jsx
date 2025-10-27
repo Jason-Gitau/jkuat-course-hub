@@ -8,7 +8,7 @@ export default function CoursesPage() {
   const [searchQuery, setSearchQuery] = useState('')
 
   // Use offline-first hook - automatically handles online/offline
-  const { courses, loading, error, isOnline, isOffline, lastSync } = useOfflineCourses()
+  const { courses, loading, isSyncing, error, isOnline, isOffline, lastSync } = useOfflineCourses()
 
   const filteredCourses = courses.filter(course => {
     const query = searchQuery.toLowerCase()
@@ -40,13 +40,24 @@ export default function CoursesPage() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-4xl font-bold">Browse Courses</h1>
 
-          {/* Network Status Badge */}
-          {isOffline && (
-            <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-1 rounded-full text-sm">
-              <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-              Offline Mode
-            </div>
-          )}
+          {/* Status Badges */}
+          <div className="flex items-center gap-2">
+            {/* Syncing Indicator */}
+            {isSyncing && isOnline && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                Syncing...
+              </div>
+            )}
+
+            {/* Offline Mode Badge */}
+            {isOffline && (
+              <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-1 rounded-full text-sm">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                Offline Mode
+              </div>
+            )}
+          </div>
         </div>
 
         <p className="text-gray-600 mb-2">

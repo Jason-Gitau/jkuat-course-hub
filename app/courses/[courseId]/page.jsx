@@ -27,6 +27,7 @@ export default function CoursePage() {
   const {
     materials: allMaterials,
     loading: materialsLoading,
+    isSyncing,
     isOnline,
     isOffline,
     lastSync
@@ -313,7 +314,7 @@ export default function CoursePage() {
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto p-8">
-        <div className="animate-pulse">
+        <div className="animate-pulse" data-testid="loading-skeleton">
           <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
           <div className="h-4 bg-gray-200 rounded w-2/3 mb-8"></div>
           <div className="space-y-4">
@@ -339,6 +340,14 @@ export default function CoursePage() {
     <div className="max-w-5xl mx-auto p-8">
       {/* Course Header */}
       <div className="mb-8">
+        {/* Syncing Status Banner */}
+        {isSyncing && isOnline && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            <span>Syncing materials from server...</span>
+          </div>
+        )}
+
         {/* Offline Status Banner */}
         {isOffline && (
           <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
@@ -369,14 +378,14 @@ export default function CoursePage() {
             )}
           </div>
 
-          {/* AI Chat Link */}
-          <Link
+          {/* AI Chat Link - Hidden for now (feature coming later) */}
+          {/* <Link
             href={`/courses/${courseId}/chat`}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 flex items-center gap-2"
           >
             <span>🤖</span>
             <span>AI Tutor</span>
-          </Link>
+          </Link> */}
         </div>
 
         <div className="flex gap-4 text-sm text-gray-600">

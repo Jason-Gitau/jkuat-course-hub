@@ -10,7 +10,7 @@ export default function Home() {
             JKUAT Course Hub
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            Student-driven platform for organizing course materials and AI-powered tutoring
+            Student-driven platform for organizing course materials
           </p>
           <div className="flex gap-4 justify-center">
             <Link
@@ -29,7 +29,7 @@ export default function Home() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
+        <div className="grid md:grid-cols-2 gap-8 mb-16">
           <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="text-3xl mb-4">📚</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Organized Materials</h3>
@@ -38,13 +38,14 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          {/* AI Tutor - Hidden for now (feature coming later) */}
+          {/* <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="text-3xl mb-4">🤖</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">AI Tutor</h3>
             <p className="text-gray-600">
               Get instant answers to questions about your course materials, powered by AI and grounded in real content.
             </p>
-          </div>
+          </div> */}
 
           <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="text-3xl mb-4">👥</div>
@@ -90,7 +91,7 @@ export default function Home() {
               <div>
                 <h4 className="font-semibold text-lg text-gray-900 mb-1">Access & Learn</h4>
                 <p className="text-gray-600">
-                  Browse materials by course and topic, or ask the AI tutor questions about the content.
+                  Browse materials by course and topic for easy access to all your study materials.
                 </p>
               </div>
             </div>

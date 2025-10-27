@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/auth/useUser'
-import { syncMaterialsForCourse, syncTopicsForCourse } from '@/lib/db/syncManager'
+import { syncMaterialsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
 import { addToUploadQueue, initUploadQueue } from '@/lib/uploadQueue'
 import UploadQueue from '@/components/UploadQueue'
 
@@ -364,15 +364,10 @@ Uploaded by: ${uploaderText}`
       setSelectedCourse(data.id)
       setCourseSearch(data.course_name)
 
-      // OFFLINE-FIRST: Immediately sync new course to IndexedDB
-      console.log('💾 Syncing new course to IndexedDB...')
-      try {
-        const { syncCourses } = await import('@/lib/db/syncManager')
-        await syncCourses()
-        console.log('✅ Course synced to IndexedDB')
-      } catch (syncError) {
-        console.warn('⚠️ Failed to sync course to IndexedDB:', syncError)
-      }
+      // OFFLINE-FIRST: Sync new course to IndexedDB in background (non-blocking)
+      syncCourses().catch(err =>
+        console.warn('⚠️ Background course sync failed:', err)
+      )
 
       // Reset form
       setShowCreateCourse(false)
@@ -414,14 +409,10 @@ Uploaded by: ${uploaderText}`
       setSelectedTopic(data.id)
       setUnitSearch(`${data.unit_code} - ${data.topic_name} (Year ${data.year}, Sem ${data.semester})`)
 
-      // OFFLINE-FIRST: Immediately sync new unit to IndexedDB
-      console.log('💾 Syncing new unit to IndexedDB...')
-      try {
-        await syncTopicsForCourse(selectedCourse)
-        console.log('✅ Unit synced to IndexedDB')
-      } catch (syncError) {
-        console.warn('⚠️ Failed to sync unit to IndexedDB:', syncError)
-      }
+      // OFFLINE-FIRST: Sync new unit to IndexedDB in background (non-blocking)
+      syncTopicsForCourse(selectedCourse).catch(err =>
+        console.warn('⚠️ Background unit sync failed:', err)
+      )
 
       // Reset form
       setShowCreateUnit(false)
