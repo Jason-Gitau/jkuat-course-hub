@@ -22,7 +22,7 @@ export default function MaterialCard({ material, getCategoryIcon, getFileIcon, g
 
   const handleClick = (e) => {
     e.preventDefault()
-    openFile(material.id, material.file_url, material.title, material.storage_location || 'supabase')
+    openFile(material.id, material.file_url, material.title)
   }
 
   return (
