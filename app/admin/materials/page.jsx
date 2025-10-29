@@ -31,6 +31,29 @@ export default function AllMaterialsPage() {
     loadMaterials();
   }, [statusFilter]);
 
+  // Handle viewing material (supports both R2 and Supabase storage)
+  async function handleViewMaterial(material) {
+    try {
+      // For R2 files, get fresh signed URL from API
+      if (material.storage_location === 'r2') {
+        const response = await fetch(`/api/materials/${material.id}/download-url`);
+        if (response.ok) {
+          const { url } = await response.json();
+          window.open(url, '_blank');
+        } else {
+          console.error('Failed to get download URL');
+          alert('Failed to load file. Please try again.');
+        }
+      } else {
+        // For Supabase files, use direct URL
+        window.open(material.file_url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error viewing material:', error);
+      alert('Failed to open file. Please try again.');
+    }
+  }
+
   async function loadMaterials() {
     setLoading(true);
     setError(null);
@@ -256,14 +279,12 @@ export default function AllMaterialsPage() {
 
                 {/* Actions */}
                 <div className="flex lg:flex-col items-center gap-2 lg:w-32">
-                  <a
-                    href={material.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => handleViewMaterial(material)}
                     className="flex-1 lg:w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition text-center text-sm"
                   >
                     View
-                  </a>
+                  </button>
                   <button
                     onClick={() =>
                       setDeletionModal({

@@ -75,22 +75,45 @@ export default bundleAnalyzer(withPWA({
   },
 
   runtimeCaching: [
-    // Root URL - Cache First for instant offline loading
+    // Root URL - NetworkFirst for fresh content
     {
       urlPattern: ({url}) => url.pathname === '/',
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'start-url',
+        networkTimeoutSeconds: 3,
         expiration: {
           maxEntries: 1,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60 // 24 hours (fallback only)
         },
         cacheableResponse: {
           statuses: [0, 200]
         }
       }
     },
-    // HTML pages (navigation requests) - Cache First for offline support
+    // PDFs from R2 - CacheFirst (aggressive caching for bandwidth savings)
+    {
+      urlPattern: ({url}) => {
+        // Match R2 URLs (Cloudflare R2 storage)
+        if (url.hostname.includes('r2.cloudflarestorage.com')) return true;
+        if (url.hostname.includes('r2.dev')) return true;
+        // Match Supabase Storage PDFs (legacy, gradually being migrated)
+        if (url.href.includes('supabase.co/storage/v1/object/public/course%20pdfs')) return true;
+        return false;
+      },
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'pdf-cache',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 365 * 24 * 60 * 60 // 1 year (PDFs rarely change)
+        },
+        cacheableResponse: {
+          statuses: [0, 200]
+        }
+      }
+    },
+    // HTML pages (navigation requests) - NetworkFirst for fresh data
     {
       urlPattern: ({url, request}) => {
         // Match all navigation requests (page loads)
@@ -101,12 +124,13 @@ export default bundleAnalyzer(withPWA({
                url.pathname.startsWith('/upload') ||
                url.pathname.startsWith('/admin')
       },
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'pages-cache',
+        networkTimeoutSeconds: 5,
         expiration: {
           maxEntries: 50,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60 // 24 hours (fallback only)
         },
         cacheableResponse: {
           statuses: [0, 200]
@@ -173,10 +197,10 @@ export default bundleAnalyzer(withPWA({
       handler: 'NetworkFirst',
       options: {
         cacheName: 'api-cache',
-        networkTimeoutSeconds: 10,
+        networkTimeoutSeconds: 5,
         expiration: {
           maxEntries: 16,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 60 * 60 // 1 hour (fallback only)
         },
         cacheableResponse: {
           statuses: [0, 200]
@@ -184,14 +208,15 @@ export default bundleAnalyzer(withPWA({
       }
     },
     {
-      // Catch-all: Cache First for true offline support
+      // Catch-all: NetworkFirst for fresh content
       urlPattern: /.*/i,
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'others',
+        networkTimeoutSeconds: 5,
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 60 * 60 // 1 hour (fallback only)
         },
         cacheableResponse: {
           statuses: [0, 200]

@@ -12,7 +12,8 @@
     "test:coverage": "jest --coverage",
     "analyze": "cross-env ANALYZE=true next build",
     "analyze:server": "cross-env ANALYZE=true BUNDLE_ANALYZE=server next build",
-    "analyze:browser": "cross-env ANALYZE=true BUNDLE_ANALYZE=browser next build"
+    "analyze:browser": "cross-env ANALYZE=true BUNDLE_ANALYZE=browser next build",
+    "migrate:r2": "node scripts/migrate-all-to-r2.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.916.0",

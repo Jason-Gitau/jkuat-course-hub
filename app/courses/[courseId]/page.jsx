@@ -1,21 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { useOfflineMaterials } from '@/lib/hooks/useOfflineData'
-import { getTopicsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
-import { STORES, getFromStore } from '@/lib/db/indexedDB'
+import { useOfflineMaterials, useOfflineCourse, useOfflineTopics } from '@/lib/hooks/useOfflineData'
 import MaterialCard from '@/components/MaterialCard'
 
 export default function CoursePage() {
   const params = useParams()
   const courseId = params.courseId
 
-  const [course, setCourse] = useState(null)
-  const [courseLoading, setCourseLoading] = useState(true)
-  const [topics, setTopics] = useState([])
   const [categoryFilter, setCategoryFilter] = useState('all')
 
   // New states for unit browsing
@@ -23,155 +17,32 @@ export default function CoursePage() {
   const [unitSearch, setUnitSearch] = useState('')
   const [showAllUnits, setShowAllUnits] = useState(true)
 
-  // Use offline-first hook for materials
+  // Use online-first hooks with React Query (5-minute cache)
+  const {
+    course,
+    loading: courseLoading,
+    isOnline: courseOnline,
+    isOffline: courseOffline,
+  } = useOfflineCourse(courseId)
+
+  const {
+    topics,
+    loading: topicsLoading,
+  } = useOfflineTopics(courseId)
+
   const {
     materials: allMaterials,
     loading: materialsLoading,
-    isSyncing,
     isOnline,
     isOffline,
-    lastSync
+    lastFetch: lastSync
   } = useOfflineMaterials(courseId)
 
   // Separate general materials from topic-specific ones
   const generalMaterials = allMaterials.filter(m => !m.topic_id)
   const materials = allMaterials.filter(m => m.topic_id)
 
-  useEffect(() => {
-    // Only run in browser
-    if (typeof window === 'undefined' || !courseId) return
-
-    const supabase = createClient()
-
-    async function loadCourseData() {
-      try {
-        setCourseLoading(true)
-
-        // PARALLEL OPTIMIZATION: Load course and topics from IndexedDB in parallel
-        const [courseFromCache, topicsFromCache] = await Promise.all([
-          getFromStore(STORES.COURSES, courseId).catch(err => {
-            console.warn('IndexedDB not available for course:', err)
-            return null
-          }),
-          getTopicsForCourse(courseId).catch(err => {
-            console.warn('IndexedDB not available for topics:', err)
-            return { success: false, data: [], isStale: true }
-          })
-        ])
-
-        const hasCachedCourse = Boolean(courseFromCache)
-        const hasCachedTopics = topicsFromCache.success && topicsFromCache.data.length > 0
-
-        if (hasCachedCourse) {
-          // Got course from IndexedDB - show it immediately
-          setCourse(courseFromCache)
-          setCourseLoading(false)
-          console.log('✅ Course loaded from IndexedDB (instant)')
-        }
-
-        if (hasCachedTopics) {
-          // Got topics from IndexedDB - show them immediately
-          setTopics(topicsFromCache.data)
-          console.log('✅ Topics loaded from IndexedDB (instant)')
-        }
-
-        // Check if we need to sync/fetch data
-        const isOnline = navigator.onLine
-        const needsCourseSync = !hasCachedCourse || (
-          courseFromCache._syncedAt &&
-          Date.now() - courseFromCache._syncedAt > 30 * 60 * 1000
-        )
-        const needsTopicsSync = !hasCachedTopics || topicsFromCache.isStale
-
-        // PARALLEL OPTIMIZATION: Sync/fetch course and topics in parallel if needed
-        if (isOnline && (needsCourseSync || needsTopicsSync)) {
-          console.log('🔄 Syncing data in parallel...')
-
-          const syncPromises = []
-
-          if (needsCourseSync && !hasCachedCourse) {
-            // First visit - fetch course from Supabase
-            syncPromises.push(
-              supabase
-                .from('courses')
-                .select('id, course_name, description, department')
-                .eq('id', courseId)
-                .single()
-                .then(({ data, error }) => {
-                  if (error) throw error
-                  setCourse(data)
-                  setCourseLoading(false)
-                  console.log('✅ Course fetched from Supabase')
-                  return data
-                })
-            )
-          } else if (needsCourseSync) {
-            // Background sync
-            syncPromises.push(
-              syncCourses()
-                .then(result => {
-                  if (result.success) {
-                    const updatedCourse = result.data.find(c => c.id === courseId)
-                    if (updatedCourse) {
-                      setCourse(updatedCourse)
-                      console.log('✅ Course synced in background')
-                    }
-                  }
-                })
-                .catch(err => console.warn('Course sync failed:', err))
-            )
-          }
-
-          if (needsTopicsSync) {
-            syncPromises.push(
-              syncTopicsForCourse(courseId)
-                .then(result => {
-                  if (result.success) {
-                    setTopics(result.data)
-                    console.log('✅ Topics synced')
-                  } else {
-                    if (!hasCachedTopics) setTopics([])
-                  }
-                })
-                .catch(err => {
-                  console.error('Topics sync failed:', err)
-                  if (!hasCachedTopics) setTopics([])
-                })
-            )
-          }
-
-          // Execute all syncs in parallel
-          if (syncPromises.length > 0) {
-            await Promise.allSettled(syncPromises)
-          }
-
-          // Cache courses in background (non-blocking)
-          if (!hasCachedCourse) {
-            syncCourses().catch(err => console.warn('Failed to cache courses:', err))
-          }
-        } else if (!hasCachedCourse || !hasCachedTopics) {
-          // Offline and missing data
-          if (!hasCachedCourse) {
-            setCourse(null)
-            setCourseLoading(false)
-          }
-          if (!hasCachedTopics) {
-            setTopics([])
-          }
-        }
-
-      } catch (error) {
-        console.error('Critical error loading course data:', error)
-        setCourse(null)
-        setCourseLoading(false)
-        setTopics([])
-      }
-    }
-
-    loadCourseData()
-  }, [courseId])
-
-  const loading = materialsLoading || courseLoading
+  const loading = materialsLoading || courseLoading || topicsLoading
 
   function getMaterialsForTopic(topicId) {
     const topicMaterials = materials.filter(m => m.topic_id === topicId)
@@ -340,14 +211,6 @@ export default function CoursePage() {
     <div className="max-w-5xl mx-auto p-8">
       {/* Course Header */}
       <div className="mb-8">
-        {/* Syncing Status Banner */}
-        {isSyncing && isOnline && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            <span>Syncing materials from server...</span>
-          </div>
-        )}
-
         {/* Offline Status Banner */}
         {isOffline && (
           <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
@@ -651,14 +514,17 @@ export default function CoursePage() {
                   <p className="text-gray-600">No general materials found.</p>
                 </div>
               ) : (
-                <VirtualMaterialList
-                  materials={filterByCategory(generalMaterials)}
-                  getCategoryIcon={getCategoryIcon}
-                  getFileIcon={getFileIcon}
-                  getCategoryLabel={getCategoryLabel}
-                  height={Math.min(filterByCategory(generalMaterials).length * 120, 800)}
-                  itemHeight={120}
-                />
+                <div className="space-y-3">
+                  {filterByCategory(generalMaterials).map(material => (
+                    <MaterialCard
+                      key={material.id}
+                      material={material}
+                      getCategoryIcon={getCategoryIcon}
+                      getFileIcon={getFileIcon}
+                      getCategoryLabel={getCategoryLabel}
+                    />
+                  ))}
+                </div>
               )}
             </>
           )}

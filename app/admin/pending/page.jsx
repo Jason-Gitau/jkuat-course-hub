@@ -14,10 +14,33 @@ export default function AdminPendingPage() {
   })
 
   const supabase = createClient()
-  
+
   useEffect(() => {
     loadPending()
   }, [])
+
+  // Handle viewing material (supports both R2 and Supabase storage)
+  async function handleViewMaterial(material) {
+    try {
+      // For R2 files, get fresh signed URL from API
+      if (material.storage_location === 'r2') {
+        const response = await fetch(`/api/materials/${material.id}/download-url`);
+        if (response.ok) {
+          const { url } = await response.json();
+          window.open(url, '_blank');
+        } else {
+          console.error('Failed to get download URL');
+          alert('Failed to load file. Please try again.');
+        }
+      } else {
+        // For Supabase files, use direct URL
+        window.open(material.file_url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error viewing material:', error);
+      alert('Failed to open file. Please try again.');
+    }
+  }
   
   async function loadPending() {
     setLoading(true)
@@ -167,14 +190,12 @@ export default function AdminPendingPage() {
               </div>
               
               <div className="flex gap-3 flex-wrap">
-                <a
-                  href={material.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => handleViewMaterial(material)}
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium underline"
                 >
                   Preview File →
-                </a>
+                </button>
 
                 <button
                   onClick={() => approve(material.id)}
