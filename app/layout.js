@@ -1,7 +1,6 @@
 import "./globals.css";
 import Navigation from "@/components/Navigation";
-import { QueryProvider } from "@/lib/providers/QueryProvider";
-import { UserProvider } from "@/lib/providers/UserProvider";
+import { Providers } from "@/lib/providers/Providers";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ServiceWorkerInit from "@/components/ServiceWorkerInit";
 import InstallPrompt from "@/components/InstallPrompt";
@@ -37,14 +36,12 @@ export default function RootLayout({ children }) {
         className="antialiased"
         suppressHydrationWarning
       >
-        <QueryProvider>
-          <UserProvider>
-            <ServiceWorkerInit />
-            <Navigation />
-            {children}
-            <InstallPrompt />
-          </UserProvider>
-        </QueryProvider>
+        <Providers>
+          <ServiceWorkerInit />
+          <Navigation />
+          {children}
+          <InstallPrompt />
+        </Providers>
         {process.env.VERCEL === '1' && <SpeedInsights />}
       </body>
     </html>

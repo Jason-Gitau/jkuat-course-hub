@@ -60,21 +60,19 @@ export async function middleware(request) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Optimize: Only check profile for authenticated users on protected routes
-  // Profile check is now done client-side in UserProvider for better caching
-  // DISABLED: Onboarding flow temporarily disabled
-  // if (user && isProtectedRoute && request.nextUrl.pathname !== '/auth/onboarding') {
-  //   const { data: profile, error } = await supabase
-  //     .from('profiles')
-  //     .select('id')
-  //     .eq('id', user.id)
-  //     .single()
+  // Check if user needs to complete onboarding for protected routes
+  if (user && isProtectedRoute && request.nextUrl.pathname !== '/auth/onboarding') {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('id, onboarding_completed')
+      .eq('id', user.id)
+      .single()
 
-  //   // If no profile exists, redirect to onboarding
-  //   if (!profile || error?.code === 'PGRST116') {
-  //     return NextResponse.redirect(new URL('/auth/onboarding', request.url))
-  //   }
-  // }
+    // If no profile exists or onboarding not completed, redirect to onboarding
+    if (!profile || error?.code === 'PGRST116' || !profile.onboarding_completed) {
+      return NextResponse.redirect(new URL('/auth/onboarding', request.url))
+    }
+  }
 
   return response
 }

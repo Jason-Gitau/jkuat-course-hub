@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useOfflineMaterials, useOfflineCourse, useOfflineTopics } from '@/lib/hooks/useOfflineData'
 import MaterialCard from '@/components/MaterialCard'
+import CourseShareButton from '@/components/CourseShareButton'
 
 export default function CoursePage() {
   const params = useParams()
@@ -241,14 +242,8 @@ export default function CoursePage() {
             )}
           </div>
 
-          {/* AI Chat Link - Hidden for now (feature coming later) */}
-          {/* <Link
-            href={`/courses/${courseId}/chat`}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 flex items-center gap-2"
-          >
-            <span>🤖</span>
-            <span>AI Tutor</span>
-          </Link> */}
+          {/* Course Share Button */}
+          <CourseShareButton course={course} />
         </div>
 
         <div className="flex gap-4 text-sm text-gray-600">

@@ -6,9 +6,15 @@ import { useUser } from '@/lib/auth/useUser'
 import { syncMaterialsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
 import { addToUploadQueue, initUploadQueue } from '@/lib/uploadQueue'
 import UploadQueue from '@/components/UploadQueue'
+// import ProductTour from '@/components/onboarding/ProductTour' // Temporarily disabled - React 18 compatibility issue
+import { useOnboarding } from '@/lib/hooks/useOnboarding'
+import { useSearchParams } from 'next/navigation'
 
 export default function UploadPage() {
   const { user, profile, loading: authLoading } = useUser()
+  const { shouldShowTour } = useOnboarding()
+  const searchParams = useSearchParams()
+
   const [courses, setCourses] = useState([])
   const [topics, setTopics] = useState([])
   const [selectedCourse, setSelectedCourse] = useState('')
@@ -26,6 +32,7 @@ export default function UploadPage() {
   const [yearNumber, setYearNumber] = useState('')
   const [assignmentNumber, setAssignmentNumber] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const [runTour, setRunTour] = useState(false)
 
   // Autocomplete states
   const [courseSearch, setCourseSearch] = useState('')
@@ -54,6 +61,18 @@ export default function UploadPage() {
   useEffect(() => {
     initUploadQueue()
   }, [])
+
+  // Start tour if coming from onboarding or if tour should be shown
+  useEffect(() => {
+    const tourParam = searchParams.get('tour')
+    if (tourParam === 'true' || shouldShowTour) {
+      // Delay tour start to ensure page is fully loaded
+      const timer = setTimeout(() => {
+        setRunTour(true)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams, shouldShowTour])
 
   // Pre-fill form with user's profile data
   useEffect(() => {
@@ -608,7 +627,7 @@ Uploaded by: ${uploaderText}`
           )}
           
           {/* Course Selection with Autocomplete */}
-          <div>
+          <div data-tour="course-select">
             <label className="block text-sm font-medium mb-2">
               1. Course <span className="text-red-500">*</span>
             </label>
@@ -737,7 +756,7 @@ Uploaded by: ${uploaderText}`
           
           {/* Unit/Topic Selection with Autocomplete */}
           {selectedCourse && (
-            <div>
+            <div data-tour="unit-select">
               <label className="block text-sm font-medium mb-2">
                 2. Select Unit <span className="text-red-500">*</span>
               </label>
@@ -903,7 +922,7 @@ Uploaded by: ${uploaderText}`
 
           {/* Material Type */}
           {selectedTopic && (
-            <div>
+            <div data-tour="category-select">
               <label className="block text-sm font-medium mb-3">
                 3. Material Type <span className="text-red-500">*</span>
               </label>
@@ -1023,7 +1042,7 @@ Uploaded by: ${uploaderText}`
 
           {/* File Upload - Drag & Drop Zone */}
           {selectedTopic && (
-            <div>
+            <div data-tour="file-upload">
               <label className="block text-sm font-medium mb-2">
                 4. Upload Files <span className="text-red-500">*</span>
               </label>
@@ -1169,6 +1188,7 @@ Uploaded by: ${uploaderText}`
               onClick={handleUpload}
               disabled={uploading}
               className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-lg shadow-lg hover:shadow-xl"
+              data-tour="submit-button"
             >
               {uploading ? (
                 <>
@@ -1217,6 +1237,9 @@ Uploaded by: ${uploaderText}`
           </li>
         </ul>
       </div>
+
+      {/* Product Tour - Temporarily disabled due to React 18 compatibility */}
+      {/* <ProductTour run={runTour} /> */}
     </div>
   )
 }

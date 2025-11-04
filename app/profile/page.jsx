@@ -32,15 +32,18 @@ export default function ProfilePage() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*, courses(course_name)')
+        .select('*, courses!profiles_course_id_fkey(course_name)')
         .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to load profile:', error.message || error.hint);
+        throw new Error(error.message || error.hint || 'Failed to load profile');
+      }
 
       setProfile(data);
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('Error loading profile:', error.message);
     } finally {
       setLoading(false);
     }
@@ -80,7 +83,6 @@ export default function ProfilePage() {
       alert('Profile updated successfully!');
       await loadProfile();
     } catch (error) {
-      console.error('Error updating profile:', error);
       alert('Failed to update profile: ' + error.message);
     } finally {
       setSaving(false);
@@ -106,7 +108,6 @@ export default function ProfilePage() {
         alert('Class Rep status removed');
         await loadProfile();
       } catch (error) {
-        console.error('Error updating role:', error);
         alert('Failed to update role: ' + error.message);
       }
     } else {
@@ -130,7 +131,6 @@ export default function ProfilePage() {
       alert('You are now a Class Rep! Thank you for contributing to the community.');
       await loadProfile();
     } catch (error) {
-      console.error('Error updating role:', error);
       alert('Failed to update role: ' + error.message);
     } finally {
       setSaving(false);

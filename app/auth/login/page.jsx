@@ -2,18 +2,24 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
+  const [inviteCourse, setInviteCourse] = useState(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
-  // Check if already logged in
+  const courseId = searchParams.get('c')
+  const inviterId = searchParams.get('ref')
+
+  // Check if already logged in and handle invite params
   useEffect(() => {
     async function checkUser() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -22,7 +28,34 @@ export default function LoginPage() {
       }
     }
     checkUser()
-  }, [])
+
+    // Store invite params if present
+    if (courseId && inviterId) {
+      localStorage.setItem('inviteParams', JSON.stringify({
+        courseId,
+        inviterId
+      }))
+
+      // Fetch course name for display
+      fetchCourseName()
+    }
+  }, [courseId, inviterId])
+
+  async function fetchCourseName() {
+    try {
+      const { data } = await supabase
+        .from('courses')
+        .select('course_name')
+        .eq('id', courseId)
+        .single()
+
+      if (data) {
+        setInviteCourse(data.course_name)
+      }
+    } catch (err) {
+      console.error('Error fetching course:', err)
+    }
+  }
 
   // Handle Google sign in
   async function handleGoogleSignIn() {
@@ -87,9 +120,31 @@ export default function LoginPage() {
             </h1>
           </Link>
           <p className="text-gray-600">
-            Sign in to access personalized course materials
+            {inviteCourse
+              ? `Join ${inviteCourse} and access course materials`
+              : 'Sign in to access personalized course materials'
+            }
           </p>
         </div>
+
+        {/* Invite Banner */}
+        {inviteCourse && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900">
+                  You've been invited to join <strong>{inviteCourse}</strong>
+                </p>
+                <p className="text-xs text-blue-700">Sign in to accept the invitation</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
@@ -184,5 +239,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   )
 }
