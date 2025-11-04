@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/auth/useUser'
 import { syncMaterialsForCourse, syncTopicsForCourse, syncCourses } from '@/lib/db/syncManager'
@@ -10,7 +10,7 @@ import UploadQueue from '@/components/UploadQueue'
 import { useOnboarding } from '@/lib/hooks/useOnboarding'
 import { useSearchParams } from 'next/navigation'
 
-export default function UploadPage() {
+function UploadPageContent() {
   const { user, profile, loading: authLoading } = useUser()
   const { shouldShowTour } = useOnboarding()
   const searchParams = useSearchParams()
@@ -1241,5 +1241,18 @@ Uploaded by: ${uploaderText}`
       {/* Product Tour - Temporarily disabled due to React 18 compatibility */}
       {/* <ProductTour run={runTour} /> */}
     </div>
+  )
+}
+
+export default function UploadPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin text-4xl mb-4">⏳</div>
+        <p className="text-gray-600">Loading upload form...</p>
+      </div>
+    </div>}>
+      <UploadPageContent />
+    </Suspense>
   )
 }
