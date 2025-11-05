@@ -25,17 +25,19 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Force dark text in form inputs for readability on all devices */
+/* Form input colors that respect light/dark mode */
 input,
 select,
 textarea {
-  color: #111827 !important; /* gray-900 - dark text */
+  color: var(--foreground);
+  background-color: var(--background);
 }
 
 /* Ensure placeholder text is visible but lighter */
 input::placeholder,
 textarea::placeholder {
-  color: #9ca3af !important; /* gray-400 - lighter placeholder */
+  color: var(--foreground);
+  opacity: 0.6;
 }
 
 /* PWA Install Prompt Animation */

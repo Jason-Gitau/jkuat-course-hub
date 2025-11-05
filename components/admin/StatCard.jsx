@@ -9,19 +9,19 @@ export default function StatCard({ title, value, subtitle, icon, trend, trendVal
   };
 
   const trendColors = {
-    up: 'text-green-600 bg-green-50',
-    down: 'text-red-600 bg-red-50',
-    neutral: 'text-gray-600 bg-gray-50',
+    up: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20',
+    down: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20',
+    neutral: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800',
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-100">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-100 dark:border-gray-700">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
           {subtitle && (
-            <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
           )}
         </div>
         {icon && (
@@ -39,7 +39,7 @@ export default function StatCard({ title, value, subtitle, icon, trend, trendVal
             {trend === 'neutral' && '→'}
             {' '}{trendValue}
           </span>
-          <span className="text-xs text-gray-500">vs last period</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">vs last period</span>
         </div>
       )}
     </div>

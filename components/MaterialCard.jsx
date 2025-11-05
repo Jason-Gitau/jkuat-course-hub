@@ -28,11 +28,11 @@ export default function MaterialCard({ material, getCategoryIcon, getFileIcon, g
   return (
     <div
       onClick={handleClick}
-      className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-4 transition shadow-sm hover:shadow-md cursor-pointer relative"
+      className="block bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition shadow-sm hover:shadow-md cursor-pointer relative"
     >
       {/* Download Progress Bar */}
       {isDownloading && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gray-200 rounded-t-lg overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700 rounded-t-lg overflow-hidden">
           <div
             className="h-full bg-blue-600 transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -46,18 +46,18 @@ export default function MaterialCard({ material, getCategoryIcon, getFileIcon, g
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="font-semibold text-gray-900">{material.title}</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white">{material.title}</h3>
             <div className="flex items-center gap-2">
               {/* Cached Indicator */}
               {isCached && !isDownloading && (
-                <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+                <span className="inline-block bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs px-2 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
                   <span>💾</span>
                   <span>Cached</span>
                 </span>
               )}
               {/* Category Label */}
               {getCategoryLabel(material) && (
-                <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
+                <span className="inline-block bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs px-2 py-1 rounded-full whitespace-nowrap">
                   {getCategoryLabel(material)}
                 </span>
               )}
@@ -66,15 +66,15 @@ export default function MaterialCard({ material, getCategoryIcon, getFileIcon, g
 
           {/* Download Status */}
           {isDownloading && (
-            <div className="text-xs text-blue-600 mb-1">
+            <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">
               {progress < 100 ? `Downloading... ${progress}%` : 'Opening file...'}
             </div>
           )}
 
           {material.description && (
-            <p className="text-sm text-gray-600 mt-1">{material.description}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{material.description}</p>
           )}
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Uploaded by {material.uploaded_by || 'Anonymous'} • {new Date(material.created_at).toLocaleDateString()}
           </p>
         </div>

@@ -30,7 +30,9 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        <meta name="theme-color" content="#2563eb" />
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)" />
+        <meta name="color-scheme" content="light dark" />
       </head>
       <body
         className="antialiased"

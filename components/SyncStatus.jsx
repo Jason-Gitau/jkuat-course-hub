@@ -86,14 +86,14 @@ export default function SyncStatus({ userId }) {
       {/* Online/Offline Indicator */}
       <div className="flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
-        <span className="text-gray-600">
+        <span className="text-gray-600 dark:text-gray-300">
           {isOnline ? 'Online' : 'Offline'}
         </span>
       </div>
 
       {/* Last Sync Time */}
       {lastSync && (
-        <div className="text-gray-500">
+        <div className="text-gray-500 dark:text-gray-400">
           Last synced: {formatSyncTime(lastSync)}
         </div>
       )}
@@ -104,8 +104,8 @@ export default function SyncStatus({ userId }) {
         disabled={!isOnline || syncing}
         className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
           !isOnline || syncing
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+            : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
         }`}
         title={!isOnline ? 'Cannot sync while offline' : 'Refresh data from server'}
       >
