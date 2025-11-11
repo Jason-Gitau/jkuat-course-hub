@@ -18,6 +18,11 @@ export default function Navigation() {
     setIsMounted(true)
   }, [])
 
+  // Hide navigation on material viewer pages
+  if (pathname?.includes('/materials/') && pathname?.includes('/view')) {
+    return null
+  }
+
   const isActive = (path) => {
     if (!isMounted) return false
     return pathname === path

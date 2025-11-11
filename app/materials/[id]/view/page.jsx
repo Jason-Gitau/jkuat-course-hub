@@ -114,100 +114,91 @@ export default function MaterialViewerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold text-gray-900">{material?.title}</h1>
-            <p className="text-sm text-gray-600">
+    <div className="h-screen bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
+      {/* Compact Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
+        <div className="px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between gap-2">
+          {/* Title - Truncated */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate">
+              {material?.title}
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block truncate">
               {material?.type?.toUpperCase()} • {material?.courses?.course_name}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Action Buttons - Icons only on mobile */}
+          <div className="flex gap-1 shrink-0">
+            {/* Download Button */}
+            <button
+              onClick={handleDownload}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition flex items-center justify-center text-gray-700 dark:text-gray-300"
+              title="Download"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+
             {/* Open in New Tab Button */}
             <a
               href={viewerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition flex items-center justify-center text-gray-700 dark:text-gray-300"
+              title="Open in new tab"
             >
-              <span>📖</span>
-              <span className="hidden sm:inline">View Full Screen</span>
-              <span className="sm:hidden">Full Screen</span>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
             </a>
 
-            {/* Download Button */}
-            <button
-              onClick={handleDownload}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
-            >
-              <span>⬇️</span>
-              <span className="hidden sm:inline">Download</span>
-              <span className="sm:hidden">DL</span>
-            </button>
-
-            {/* Back Button */}
+            {/* Close Button */}
             <button
               onClick={() => router.back()}
-              className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition flex items-center justify-center text-gray-700 dark:text-gray-300"
               title="Go back"
             >
-              ✕
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Viewer Content */}
-      <div className="flex-1 p-4">
-        <div className="max-w-7xl mx-auto h-full">
-          {!iframeError ? (
-            <div className="bg-white rounded-lg shadow-lg h-full overflow-hidden flex flex-col">
-              {/* iframe container */}
-              <iframe
-                src={viewerUrl}
-                title={`View ${material?.title}`}
-                className="flex-1 w-full border-0"
-                onError={() => {
-                  console.error('Iframe failed to load')
-                  setIframeError(true)
-                }}
-                sandbox="allow-same-origin allow-scripts allow-popups allow-presentation"
-              />
-
-              {/* Loading indicator */}
-              <div className="text-center py-8 text-gray-600 hidden">
-                <p>Preparing document for viewing...</p>
-              </div>
+      {/* Full-Screen Document Viewer */}
+      <div className="flex-1 overflow-hidden">
+        {!iframeError ? (
+          <iframe
+            src={viewerUrl}
+            title={`View ${material?.title}`}
+            className="w-full h-full border-0"
+            onError={() => {
+              console.error('Iframe failed to load')
+              setIframeError(true)
+            }}
+            sandbox="allow-same-origin allow-scripts allow-popups allow-presentation"
+          />
+        ) : (
+          /* Fallback when iframe fails */
+          <div className="w-full h-full flex items-center justify-center bg-white dark:bg-gray-800">
+            <div className="text-center p-8">
+              <div className="text-gray-600 dark:text-gray-400 text-4xl mb-4">📄</div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Document Viewer Unavailable</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                The document viewer is temporarily unavailable for this file. Please download the file to view it locally.
+              </p>
+              <button
+                onClick={handleDownload}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+              >
+                Download File
+              </button>
             </div>
-          ) : (
-            /* Fallback when iframe fails */
-            <div className="bg-white rounded-lg shadow-lg p-8">
-              <div className="text-center">
-                <div className="text-gray-600 text-4xl mb-4">📄</div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Document Viewer Unavailable</h2>
-                <p className="text-gray-600 mb-6">
-                  The document viewer is temporarily unavailable for this file. Please download the file to view it locally.
-                </p>
-                <button
-                  onClick={handleDownload}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  Download File
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Info Banner */}
-      <div className="bg-blue-50 border-t border-blue-200 px-4 py-3">
-        <div className="max-w-7xl mx-auto text-sm text-blue-900">
-          💡 <strong>Tip:</strong> For the best experience, use "View Full Screen" or download the file to view locally.
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
