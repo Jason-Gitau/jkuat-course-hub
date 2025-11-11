@@ -26,7 +26,8 @@ export default function MaterialViewerPage() {
       // Fetch material metadata
       const metaResponse = await fetch(`/api/materials/${params.id}`)
       if (!metaResponse.ok) {
-        throw new Error('Failed to load material')
+        const errorData = await metaResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to load material (${metaResponse.status})`)
       }
       const materialData = await metaResponse.json()
       setMaterial(materialData)
@@ -34,7 +35,8 @@ export default function MaterialViewerPage() {
       // Get signed URL for viewing
       const urlResponse = await fetch(`/api/materials/${params.id}/download-url`)
       if (!urlResponse.ok) {
-        throw new Error('Failed to generate viewer URL')
+        const errorData = await urlResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || errorData.details || `Failed to generate viewer URL (${urlResponse.status})`)
       }
       const { url } = await urlResponse.json()
 
@@ -43,7 +45,11 @@ export default function MaterialViewerPage() {
       const googleViewerUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`
       setViewerUrl(googleViewerUrl)
     } catch (err) {
-      console.error('Error loading material:', err)
+      console.error('Error loading material:', {
+        message: err.message,
+        stack: err.stack,
+        materialId: params.id
+      })
       setError(err.message)
     } finally {
       setLoading(false)
