@@ -74,12 +74,17 @@ export async function POST(req) {
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/gif'
     ]
-    
+
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Only PDF, DOCX, PPT allowed' },
+        { error: 'Invalid file type. Only PDF, DOCX, PPT, and images (PNG, JPG, WEBP, GIF) allowed' },
         { status: 400 }
       )
     }
@@ -93,7 +98,7 @@ export async function POST(req) {
       fileName: file.name,
       courseId: courseId,
       contentType: file.type,
-      compressPDF: true, // Enable PDF compression
+      compressPDF: file.type === 'application/pdf', // Only compress PDFs, not images
     })
 
     if (!uploadResult || !uploadResult.url) {
@@ -198,5 +203,6 @@ function getFileType(mimeType) {
   if (mimeType.includes('pdf')) return 'pdf'
   if (mimeType.includes('word')) return 'docx'
   if (mimeType.includes('presentation')) return 'pptx'
+  if (mimeType.includes('image')) return 'image'
   return 'other'
 }

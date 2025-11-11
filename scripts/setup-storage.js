@@ -34,7 +34,12 @@ async function setupStorage() {
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/gif'
     ]
   })
 
@@ -53,7 +58,7 @@ async function setupStorage() {
   console.log('✅ Storage bucket "course pdfs" created successfully!')
   console.log('   Public: Yes')
   console.log('   Max file size: 50MB')
-  console.log('   Allowed types: PDF, DOCX, PPTX')
+  console.log('   Allowed types: PDF, DOCX, PPTX, PNG, JPG, WEBP, GIF')
 }
 
 setupStorage().catch(console.error)
