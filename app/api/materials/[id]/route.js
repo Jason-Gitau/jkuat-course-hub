@@ -25,8 +25,7 @@ export async function GET(request, { params }) {
         uploaded_by,
         courses:course_id (
           id,
-          course_name,
-          course_code
+          course_name
         )
       `)
       .eq('id', id)
