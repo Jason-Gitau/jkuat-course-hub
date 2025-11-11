@@ -74,6 +74,13 @@ export default function MaterialViewerPage() {
     }
   }
 
+  // Check if the file is an image
+  const isImage = () => {
+    if (!material?.type) return false
+    const type = material.type.toLowerCase()
+    return type.includes('image') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(ext => type.includes(ext))
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -167,6 +174,15 @@ export default function MaterialViewerPage() {
           </div>
         </div>
       </div>
+
+      {/* Image Viewer Tip */}
+      {isImage() && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-3">
+          <div className="text-sm text-blue-900 dark:text-blue-200">
+            💡 <strong>Tip:</strong> For the best viewing experience with images, use the Download button above to save the image and view it in your phone's gallery or image viewer.
+          </div>
+        </div>
+      )}
 
       {/* Full-Screen Document Viewer */}
       <div className="flex-1 overflow-hidden">
