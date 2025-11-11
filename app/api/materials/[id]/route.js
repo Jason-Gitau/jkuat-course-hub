@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
         material_category,
         created_at,
         uploaded_by,
-        courses!course_id (
+        courses:course_id (
           id,
           course_name,
           course_code
@@ -32,7 +32,10 @@ export async function GET(request, { params }) {
       .eq('id', id)
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw error
+    }
     if (!material) {
       return Response.json({ error: 'Material not found' }, { status: 404 })
     }
