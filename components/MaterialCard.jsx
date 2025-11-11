@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useCachedFile } from '@/lib/hooks/useCachedFile'
 
 /**
@@ -8,6 +9,7 @@ import { useCachedFile } from '@/lib/hooks/useCachedFile'
  * Downloads files only once, then serves from IndexedDB cache
  */
 export default function MaterialCard({ material, getCategoryIcon, getFileIcon, getCategoryLabel }) {
+  const router = useRouter()
   const { openFile, isDownloading, progress, isFileCached } = useCachedFile()
   const [isCached, setIsCached] = useState(false)
 
@@ -20,15 +22,21 @@ export default function MaterialCard({ material, getCategoryIcon, getFileIcon, g
     checkCache()
   }, [material.id, isFileCached])
 
-  const handleClick = (e) => {
+  const handleDownload = (e) => {
     e.preventDefault()
+    e.stopPropagation()
     openFile(material.id, material.file_url, material.title)
+  }
+
+  const handleView = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    router.push(`/materials/${material.id}/view`)
   }
 
   return (
     <div
-      onClick={handleClick}
-      className="block bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition shadow-sm hover:shadow-md cursor-pointer relative"
+      className="block bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition shadow-sm hover:shadow-md relative"
     >
       {/* Download Progress Bar */}
       {isDownloading && (
@@ -77,6 +85,25 @@ export default function MaterialCard({ material, getCategoryIcon, getFileIcon, g
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Uploaded by {material.uploaded_by || 'Anonymous'} • {new Date(material.created_at).toLocaleDateString()}
           </p>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleView}
+              className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition flex items-center justify-center gap-1"
+            >
+              <span>👁️</span>
+              <span>View</span>
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex-1 px-3 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white text-sm font-medium rounded transition flex items-center justify-center gap-1"
+            >
+              <span>⬇️</span>
+              <span>{isDownloading ? `${progress}%` : 'Download'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
