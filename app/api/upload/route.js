@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server'
 import { uploadFile } from '@/lib/storage/storage-manager.js'
 import { getServiceRoleClient } from '@/lib/supabase/server.js'
 
+export const runtime = 'nodejs' // Ensure Node.js runtime
+export const maxDuration = 60 // Maximum execution time in seconds
+
+
 export async function POST(req) {
   // Use centralized service role client for better connection pooling
   const supabase = getServiceRoleClient()
@@ -62,10 +66,12 @@ export async function POST(req) {
     }
     
     // Check file size (50MB limit)
-    if (file.size > 50 * 1024 * 1024) {
+    const MAX_FILE_SIZE = 50 * 1024 * 1024 // 100MB in bytes
+
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: 'File too large (max 50MB)' },
-        { status: 400 }
+        { error: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` },
+        { status: 413 } // 413 = Payload Too Large (more semantic)
       )
     }
     

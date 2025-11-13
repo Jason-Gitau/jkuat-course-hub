@@ -9,6 +9,7 @@ import UploadQueue from '@/components/UploadQueue'
 // import ProductTour from '@/components/onboarding/ProductTour' // Temporarily disabled - React 18 compatibility issue
 import { useOnboarding } from '@/lib/hooks/useOnboarding'
 import { useSearchParams } from 'next/navigation'
+import { performFullUpload } from '@/lib/upload/direct-r2-upload'
 
 function UploadPageContent() {
   const { user, profile, loading: authLoading } = useUser()
@@ -447,7 +448,7 @@ Uploaded by: ${uploaderText}`
     }
   }
   
-  // Upload all selected files to queue
+  // Upload all selected files directly to R2
   async function handleUpload(e) {
     e.preventDefault()
     setError('')
@@ -458,6 +459,9 @@ Uploaded by: ${uploaderText}`
       setError('Please fill in all required fields (Course, Unit, Material Type, and File)')
       return
     }
+
+    setUploading(true)
+    setUploadProgress(0)
 
     try {
       const selectedTopicData = topics.find(t => t.id === selectedTopic)
@@ -482,50 +486,71 @@ Uploaded by: ${uploaderText}`
         categoryMetadata.assignment_number = parseInt(assignmentNumber)
       }
 
-      // Queue all files
-      const uploadPromises = files.map(async (file) => {
-        // Auto-generate title for each file if not provided
-        let finalTitle = title
-        if (!finalTitle || finalTitle.trim() === '') {
-          let metadata = ''
-          if (materialCategory === 'notes' && weekNumber) {
-            metadata = ` - Week ${weekNumber}`
-          } else if (materialCategory === 'lab_material' && weekNumber) {
-            metadata = ` - Week ${weekNumber}`
-          } else if (materialCategory === 'past_paper' && yearNumber) {
-            metadata = ` - ${yearNumber}`
-          } else if (materialCategory === 'assignment' && assignmentNumber) {
-            metadata = ` - Assignment ${assignmentNumber}`
+      // Upload files directly to R2
+      let lastMaterial = null
+      const uploadPromises = files.map(async (file, index) => {
+        try {
+          // Auto-generate title for each file if not provided
+          let finalTitle = title
+          if (!finalTitle || finalTitle.trim() === '') {
+            let metadata = ''
+            if (materialCategory === 'notes' && weekNumber) {
+              metadata = ` - Week ${weekNumber}`
+            } else if (materialCategory === 'lab_material' && weekNumber) {
+              metadata = ` - Week ${weekNumber}`
+            } else if (materialCategory === 'past_paper' && yearNumber) {
+              metadata = ` - ${yearNumber}`
+            } else if (materialCategory === 'assignment' && assignmentNumber) {
+              metadata = ` - Assignment ${assignmentNumber}`
+            }
+            finalTitle = `${unitCode} ${categoryName}${metadata}`
           }
-          finalTitle = `${unitCode} ${categoryName}${metadata}`
-        }
 
-        // Prepare metadata object for this file
-        const metadata = {
-          courseId: selectedCourse,
-          topicId: selectedTopic,
-          title: finalTitle,
-          description: description || null,
-          category: materialCategory,
-          categoryMetadata: Object.keys(categoryMetadata).length > 0 ? categoryMetadata : null,
-          weekNumber: materialWeekNumber || null,
-          uploaderName: uploaderName || null,
-          userId: user?.id || null,
-          uploaderYear: profile?.year || null,
-          uploaderCourseId: profile?.course_id || null,
-        }
+          // Prepare metadata for this file
+          const metadata = {
+            courseId: selectedCourse,
+            topicId: selectedTopic,
+            title: finalTitle,
+            description: description || null,
+            materialCategory: materialCategory,
+            categoryMetadata: Object.keys(categoryMetadata).length > 0 ? categoryMetadata : null,
+            weekNumber: materialWeekNumber || null,
+            uploaderName: uploaderName || null,
+          }
 
-        // Add to queue
-        return addToUploadQueue(file, metadata)
+          // Perform direct R2 upload + metadata save
+          const uploadedMaterial = await performFullUpload(
+            file,
+            metadata,
+            (percentage) => {
+              // Update progress for current file
+              const fileProgress = (index / files.length) * 100
+              const currentFileProgress = ((percentage / 100) / files.length) * 100
+              setUploadProgress(fileProgress + currentFileProgress)
+            }
+          )
+
+          lastMaterial = uploadedMaterial
+          return uploadedMaterial
+        } catch (err) {
+          console.error(`Failed to upload ${file.name}:`, err)
+          throw err
+        }
       })
 
       await Promise.all(uploadPromises)
 
+      // Show success message with share message
+      if (lastMaterial) {
+        const shareMsg = generateShareMessage(lastMaterial)
+        setShareMessage(shareMsg)
+      }
+
       // Show success toast
       if (files.length === 1) {
-        setQueuedToast(`"${files[0].name}" added to upload queue!`)
+        setQueuedToast(`"${files[0].name}" uploaded successfully!`)
       } else {
-        setQueuedToast(`${files.length} files added to upload queue!`)
+        setQueuedToast(`${files.length} files uploaded successfully!`)
       }
       setTimeout(() => setQueuedToast(''), 3000)
 
@@ -533,6 +558,7 @@ Uploaded by: ${uploaderText}`
       setFiles([])
       setTitle('')
       setDescription('')
+      setUploadProgress(0)
       // DON'T reset: selectedCourse, courseSearch, selectedTopic, unitSearch, materialCategory, weekNumber, yearNumber, assignmentNumber
 
       const fileInput = document.getElementById('file-input')
@@ -541,7 +567,10 @@ Uploaded by: ${uploaderText}`
       if (folderInput) folderInput.value = ''
 
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Upload failed. Please try again.')
+      setUploadProgress(0)
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -1183,25 +1212,42 @@ Uploaded by: ${uploaderText}`
 
           {/* Upload Button */}
           {files.length > 0 && (
-            <button
-              type="button"
-              onClick={handleUpload}
-              disabled={uploading}
-              className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-lg shadow-lg hover:shadow-xl"
-              data-tour="submit-button"
-            >
-              {uploading ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <span>⬆️</span>
-                  Upload {files.length > 1 ? `All ${files.length} Files` : 'File'}
-                </>
+            <div>
+              <button
+                type="button"
+                onClick={handleUpload}
+                disabled={uploading}
+                className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-lg shadow-lg hover:shadow-xl"
+                data-tour="submit-button"
+              >
+                {uploading ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    Uploading to cloud... {uploadProgress > 0 && `${Math.round(uploadProgress)}%`}
+                  </>
+                ) : (
+                  <>
+                    <span>⬆️</span>
+                    Upload {files.length > 1 ? `All ${files.length} Files` : 'File'}
+                  </>
+                )}
+              </button>
+
+              {/* Upload Progress Bar */}
+              {uploading && uploadProgress > 0 && (
+                <div className="mt-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    {uploadProgress < 50 ? '📤 Uploading to cloud...' : uploadProgress < 90 ? '💾 Saving information...' : '✨ Finalizing...'}
+                  </p>
+                </div>
               )}
-            </button>
+            </div>
           )}
         </form>
       )}

@@ -8,7 +8,13 @@
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_navigate",
       "mcp__supabase__execute_sql",
-      "mcp__supabase__apply_migration"
+      "mcp__supabase__apply_migration",
+      "Bash(npm run build:*)",
+      "Bash(node:*)",
+      "WebSearch",
+      "mcp__vercel-jkuat__search_vercel_documentation",
+      "Bash(cat:*)",
+      "WebFetch(domain:vercel.com)"
     ],
     "deny": [],
     "ask": []
