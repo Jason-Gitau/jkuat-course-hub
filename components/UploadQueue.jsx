@@ -7,6 +7,8 @@ import {
   retryUpload,
   cancelUpload,
   onUploadEvent,
+  clearAllFailed,
+  clearAllCompleted,
 } from '@/lib/uploadQueue';
 
 export default function UploadQueue() {
@@ -76,6 +78,25 @@ export default function UploadQueue() {
     }
   };
 
+  const handleClearFailed = async () => {
+    if (!confirm('Clear all failed uploads? This cannot be undone.')) return;
+    try {
+      await clearAllFailed();
+      loadQueue();
+    } catch (error) {
+      console.error('Error clearing failed uploads:', error);
+    }
+  };
+
+  const handleClearCompleted = async () => {
+    try {
+      await clearAllCompleted();
+      loadQueue();
+    } catch (error) {
+      console.error('Error clearing completed uploads:', error);
+    }
+  };
+
   const handleClose = () => {
     // Only hide if no active uploads
     if (stats.pending === 0 && stats.uploading === 0) {
@@ -107,7 +128,36 @@ export default function UploadQueue() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {/* Clear Failed Button - Sleek Icon Only */}
+          {stats.failed > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClearFailed();
+              }}
+              className="text-white hover:bg-red-500 rounded px-1.5 py-1 transition-colors"
+              title={`Clear ${stats.failed} failed upload${stats.failed > 1 ? 's' : ''}`}
+            >
+              🗑️
+            </button>
+          )}
+
+          {/* Clear Completed Button - Sleek Icon Only */}
+          {stats.completed > 0 && !hasActiveUploads && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClearCompleted();
+              }}
+              className="text-white hover:bg-blue-700 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
+              title={`Clear ${stats.completed} completed upload${stats.completed > 1 ? 's' : ''}`}
+            >
+              ✓
+            </button>
+          )}
+
+          {/* Minimize Button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -117,6 +167,8 @@ export default function UploadQueue() {
           >
             {isMinimized ? '▲' : '▼'}
           </button>
+
+          {/* Close Button */}
           {!hasActiveUploads && (
             <button
               onClick={(e) => {
