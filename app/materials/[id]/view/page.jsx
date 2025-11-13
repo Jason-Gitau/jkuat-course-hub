@@ -175,45 +175,69 @@ export default function MaterialViewerPage() {
         </div>
       </div>
 
-      {/* Image Viewer Tip */}
-      {isImage() && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-3">
-          <div className="text-sm text-blue-900 dark:text-blue-200">
-            💡 <strong>Tip:</strong> For the best viewing experience with images, use the Download button above to save the image and view it in your phone's gallery or image viewer.
-          </div>
-        </div>
-      )}
-
-      {/* Full-Screen Document Viewer */}
+      {/* Full-Screen Viewer - Images or Documents */}
       <div className="flex-1 overflow-hidden">
-        {!iframeError ? (
-          <iframe
-            src={viewerUrl}
-            title={`View ${material?.title}`}
-            className="w-full h-full border-0"
-            onError={() => {
-              console.error('Iframe failed to load')
-              setIframeError(true)
-            }}
-            sandbox="allow-same-origin allow-scripts allow-popups allow-presentation"
-          />
-        ) : (
-          /* Fallback when iframe fails */
-          <div className="w-full h-full flex items-center justify-center bg-white dark:bg-gray-800">
-            <div className="text-center p-8">
-              <div className="text-gray-600 dark:text-gray-400 text-4xl mb-4">📄</div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Document Viewer Unavailable</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                The document viewer is temporarily unavailable for this file. Please download the file to view it locally.
-              </p>
-              <button
-                onClick={handleDownload}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-              >
-                Download File
-              </button>
-            </div>
+        {isImage() ? (
+          /* Native Image Viewer */
+          <div className="w-full h-full flex items-center justify-center bg-white dark:bg-gray-800 p-4">
+            {!iframeError ? (
+              <img
+                src={viewerUrl}
+                alt={material?.title}
+                className="max-w-full max-h-full object-contain"
+                onError={() => {
+                  console.error('Image failed to load')
+                  setIframeError(true)
+                }}
+              />
+            ) : (
+              /* Fallback when image fails to load */
+              <div className="text-center">
+                <div className="text-gray-600 dark:text-gray-400 text-4xl mb-4">🖼️</div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Image Failed to Load</h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  The image could not be displayed. Please download the file to view it locally.
+                </p>
+                <button
+                  onClick={handleDownload}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                >
+                  Download File
+                </button>
+              </div>
+            )}
           </div>
+        ) : (
+          /* Document Viewer (Google Docs Viewer for PDFs, Office docs, etc.) */
+          !iframeError ? (
+            <iframe
+              src={viewerUrl}
+              title={`View ${material?.title}`}
+              className="w-full h-full border-0"
+              onError={() => {
+                console.error('Iframe failed to load')
+                setIframeError(true)
+              }}
+              sandbox="allow-same-origin allow-scripts allow-popups allow-presentation"
+            />
+          ) : (
+            /* Fallback when document viewer fails */
+            <div className="w-full h-full flex items-center justify-center bg-white dark:bg-gray-800">
+              <div className="text-center p-8">
+                <div className="text-gray-600 dark:text-gray-400 text-4xl mb-4">📄</div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Document Viewer Unavailable</h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  The document viewer is temporarily unavailable for this file. Please download the file to view it locally.
+                </p>
+                <button
+                  onClick={handleDownload}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                >
+                  Download File
+                </button>
+              </div>
+            </div>
+          )
         )}
       </div>
     </div>
