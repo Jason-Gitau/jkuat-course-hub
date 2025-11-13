@@ -40,10 +40,20 @@ export default function MaterialViewerPage() {
       }
       const { url } = await urlResponse.json()
 
-      // Construct Google Docs Viewer URL with proper encoding
-      const encodedUrl = encodeURIComponent(url)
-      const googleViewerUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`
-      setViewerUrl(googleViewerUrl)
+      // For images, use the raw R2 signed URL
+      // For documents, wrap in Google Docs Viewer
+      const isImageFile = materialData?.type?.toLowerCase().includes('image') ||
+                          ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(ext => materialData?.type?.toLowerCase().includes(ext))
+
+      if (isImageFile) {
+        // Images can be displayed directly
+        setViewerUrl(url)
+      } else {
+        // Documents need Google Docs Viewer wrapper
+        const encodedUrl = encodeURIComponent(url)
+        const googleViewerUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`
+        setViewerUrl(googleViewerUrl)
+      }
     } catch (err) {
       console.error('Error loading material:', {
         message: err.message,
