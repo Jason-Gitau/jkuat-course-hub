@@ -1,0 +1,8 @@
+__tests__
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
+jest.config.js
+jest.setup.js
+coverage
