@@ -33,10 +33,16 @@ export async function middleware(request) {
 
   // Optimize: Only check auth for routes that need it
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
+
+  // Skip API routes - they handle their own authentication
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api')
+
   const isProtectedRoute =
-    request.nextUrl.pathname.startsWith('/upload') ||
-    request.nextUrl.pathname.startsWith('/admin') ||
-    request.nextUrl.pathname.startsWith('/profile')
+    !isApiRoute && (
+      request.nextUrl.pathname.startsWith('/upload') ||
+      request.nextUrl.pathname.startsWith('/admin') ||
+      request.nextUrl.pathname.startsWith('/profile')
+    )
 
   const needsAuthCheck = isAuthPage || isProtectedRoute
 
