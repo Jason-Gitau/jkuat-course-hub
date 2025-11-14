@@ -2,6 +2,8 @@
  * Material Deletion API
  * Handles soft delete (hide) and hard delete (permanent) for materials
  * Admin-only endpoint with safety checks and audit logging
+ *
+ * Route: /api/admin/materials/[id]/delete
  */
 
 import { NextResponse } from 'next/server';
