@@ -29,8 +29,8 @@ const customJestConfig = {
     '^.+\\.module\\.(css|sass|scss)$',
   ],
   testMatch: [
-    '**/__tests__/**/*.test.js',
-    '**/?(*.)+(spec|test).js'
+    '**/__tests__/**/*.test.{js,jsx}',
+    '**/?(*.)+(spec|test).{js,jsx}'
   ],
   collectCoverageFrom: [
     'lib/**/*.{js,jsx}',

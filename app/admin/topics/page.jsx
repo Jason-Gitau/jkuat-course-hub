@@ -6,10 +6,12 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import ConfirmModal from '@/components/admin/ConfirmModal';
 
 export default function ManageTopicsPage() {
+  const router = useRouter();
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -229,7 +231,8 @@ export default function ManageTopicsPage() {
           {filteredTopics.map((topic) => (
             <div
               key={topic.id}
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition"
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg hover:border-blue-300 transition cursor-pointer group"
+              onClick={() => router.push(`/admin/topics/${topic.id}`)}
             >
               <div className="flex flex-col lg:flex-row gap-4">
                 {/* Topic Info */}
@@ -238,7 +241,7 @@ export default function ManageTopicsPage() {
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
                       Week {topic.week_number}
                     </span>
-                    <h3 className="font-semibold text-gray-900">{topic.topic_name}</h3>
+                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition">{topic.topic_name}</h3>
                   </div>
 
                   <p className="text-sm text-gray-600 mb-2">
@@ -246,7 +249,7 @@ export default function ManageTopicsPage() {
                   </p>
 
                   {topic.description && (
-                    <p className="text-sm text-gray-600 mb-2 italic">"{topic.description}"</p>
+                    <p className="text-sm text-gray-600 mb-2 italic line-clamp-1">"{topic.description}"</p>
                   )}
 
                   <div className="flex items-center gap-4 text-sm">
@@ -259,8 +262,23 @@ export default function ManageTopicsPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                  {topic.materialsCount > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/admin/topics/${topic.id}`);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition text-sm flex items-center gap-2"
+                      title="View and manage materials"
+                    >
+                      <span>📋</span> View Materials
+                    </button>
+                  )}
                   <button
-                    onClick={() => setDeleteModal({ isOpen: true, topic })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteModal({ isOpen: true, topic });
+                    }}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition text-sm"
                     disabled={topic.materialsCount > 0}
                     title={
@@ -275,9 +293,8 @@ export default function ManageTopicsPage() {
               </div>
 
               {topic.materialsCount > 0 && (
-                <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">
-                  ⚠️ This topic has {topic.materialsCount} material(s). Delete them first, or they will
-                  become orphaned.
+                <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-800">
+                  💡 Click this card or "View Materials" to manage materials under this topic
                 </div>
               )}
             </div>

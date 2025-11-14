@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getServiceRoleClient } from '@/lib/supabase/server';
+import { deleteFromR2 } from '@/lib/storage/r2-client';
 
 export async function POST(request, { params }) {
   try {
@@ -145,8 +146,35 @@ export async function POST(request, { params }) {
 
       if (deleteError) throw deleteError;
 
-      // TODO: Delete file from storage (Supabase/R2) in background
-      // This should be handled by a separate cleanup job to avoid blocking the response
+      // Delete file from storage (R2 or Supabase)
+      // Don't block response if storage deletion fails, but log it
+      try {
+        if (material.storage_location === 'r2' && material.storage_path) {
+          // Delete from R2
+          await deleteFromR2(material.storage_path);
+          console.log(`✅ File deleted from R2: ${material.storage_path}`);
+        } else if (material.storage_location === 'supabase' && material.file_url) {
+          // Delete from Supabase storage
+          // Extract path from URL or use storage_path
+          const storagePath = material.storage_path || extractPathFromUrl(material.file_url);
+          if (storagePath) {
+            const { error: storageError } = await supabase
+              .storage
+              .from('materials')
+              .remove([storagePath]);
+
+            if (storageError) {
+              console.warn(`⚠️ Failed to delete from Supabase: ${storageError.message}`);
+            } else {
+              console.log(`✅ File deleted from Supabase: ${storagePath}`);
+            }
+          }
+        }
+      } catch (storageError) {
+        // Log storage deletion errors but don't fail the entire operation
+        console.error(`⚠️ Storage deletion error for ${material.title}:`, storageError.message);
+        // Material is already deleted from database, so continue
+      }
 
       return NextResponse.json({
         success: true,
@@ -259,5 +287,24 @@ export async function GET(request, { params }) {
       { error: `Failed to get impact data: ${error.message}` },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Helper function to extract storage path from Supabase file URL
+ * @param {string} fileUrl - Full file URL
+ * @returns {string|null} - Storage path or null if can't extract
+ */
+function extractPathFromUrl(fileUrl) {
+  if (!fileUrl) return null;
+
+  try {
+    // Supabase URLs follow pattern: https://{project}.supabase.co/storage/v1/object/public/materials/{path}
+    // Extract the path after 'materials/'
+    const match = fileUrl.match(/\/materials\/(.*?)(?:\?|$)/);
+    return match ? match[1] : null;
+  } catch (error) {
+    console.error('Error extracting path from URL:', error);
+    return null;
   }
 }
