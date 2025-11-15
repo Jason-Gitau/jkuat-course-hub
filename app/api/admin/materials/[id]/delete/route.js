@@ -337,9 +337,9 @@ export async function GET(request, { params }) {
         view_count,
         file_size,
         created_at,
+        uploaded_by,
         courses!materials_course_id_fkey (course_name),
-        topics!materials_topic_id_fkey (topic_name),
-        uploader:uploaded_by (full_name, email)
+        topics!materials_topic_id_fkey (topic_name)
       `)
       .eq('id', id)
       .single();
@@ -365,7 +365,7 @@ export async function GET(request, { params }) {
       downloads: material.download_count || 0,
       views: material.view_count || 0,
       fileSizeMB: material.file_size ? (material.file_size / (1024 * 1024)).toFixed(2) : 0,
-      uploadedBy: material.uploader?.full_name || 'Unknown',
+      uploadedBy: material.uploaded_by || 'Unknown',  // Show user ID instead of name to avoid join issues
       course: material.courses?.course_name || 'Unknown',
       topic: material.topics?.topic_name || 'None',
       uploadDate: material.created_at,
