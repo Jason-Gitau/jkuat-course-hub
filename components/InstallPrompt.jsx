@@ -7,6 +7,7 @@ export default function InstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [hasShownThisSession, setHasShownThisSession] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -17,20 +18,48 @@ export default function InstallPrompt() {
       return
     }
 
-    // Check if user has already dismissed the prompt
+    // Check if already shown this session (prevents multiple shows on navigation/refresh)
+    const shownThisSession = sessionStorage.getItem('pwa-prompt-shown')
+    if (shownThisSession) {
+      console.log('[PWA] Prompt already shown this session, skipping')
+      return
+    }
+
+    // Check dismissal count - stop showing after 3 dismissals
+    const dismissCount = parseInt(localStorage.getItem('pwa-dismiss-count') || '0')
+    if (dismissCount >= 3) {
+      console.log('[PWA] User has dismissed 3+ times, not showing again')
+      return
+    }
+
+    // Check if user has already dismissed the prompt recently
     const dismissed = localStorage.getItem('pwa-install-dismissed')
     if (dismissed) {
       const dismissedTime = parseInt(dismissed)
       const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24)
 
-      // Show again after 7 days
-      if (daysSinceDismissed < 7) {
+      // Adjust wait period based on dismissal count
+      let waitDays = 7 // Default: 7 days
+      if (dismissCount === 1) waitDays = 30 // After 1st dismissal: 30 days
+      if (dismissCount >= 2) waitDays = 90 // After 2nd dismissal: 90 days
+
+      if (daysSinceDismissed < waitDays) {
+        console.log(`[PWA] Dismissed ${Math.floor(daysSinceDismissed)} days ago, waiting ${waitDays} days (dismissal #${dismissCount})`)
         return
       }
     }
 
+    // Prevent showing if already shown this session via state
+    if (hasShownThisSession) {
+      return
+    }
+
+    let timeoutId = null
+
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e) => {
+      console.log('[PWA] beforeinstallprompt event fired')
+
       // DON'T call preventDefault() - let browser show its native install button!
       // This allows the download icon to appear in the address bar on desktop
 
@@ -38,29 +67,48 @@ export default function InstallPrompt() {
       setDeferredPrompt(e)
 
       // Show custom install prompt after 3 seconds
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
+        console.log('[PWA] Showing install prompt')
         setShowPrompt(true)
+        setHasShownThisSession(true)
+
+        // Mark as shown this session to prevent re-showing on navigation
+        sessionStorage.setItem('pwa-prompt-shown', 'true')
       }, 3000)
     }
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-
     // Detect if app was successfully installed
-    window.addEventListener('appinstalled', () => {
+    const handleAppInstalled = () => {
+      console.log('[PWA] App installed successfully')
       setIsInstalled(true)
       setShowPrompt(false)
       setDeferredPrompt(null)
-    })
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      // Clear dismissal tracking since user installed
+      localStorage.removeItem('pwa-install-dismissed')
+      localStorage.removeItem('pwa-dismiss-count')
+      sessionStorage.removeItem('pwa-prompt-shown')
     }
-  }, [])
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+
+    // Cleanup function
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
+    }
+  }, [hasShownThisSession])
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
       return
     }
+
+    console.log('[PWA] User clicked install button')
 
     // Show the install prompt
     deferredPrompt.prompt()
@@ -69,19 +117,36 @@ export default function InstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice
 
     if (outcome === 'accepted') {
-      console.log('User accepted the install prompt')
+      console.log('[PWA] User accepted the install prompt')
       setShowPrompt(false)
       setDeferredPrompt(null)
+
+      // Clear dismissal tracking since user accepted
+      localStorage.removeItem('pwa-install-dismissed')
+      localStorage.removeItem('pwa-dismiss-count')
     } else {
-      console.log('User dismissed the install prompt')
+      console.log('[PWA] User dismissed the native install prompt')
       handleDismiss()
     }
   }
 
   const handleDismiss = () => {
+    console.log('[PWA] User dismissed the install prompt')
+
     setShowPrompt(false)
-    // Remember dismissal for 7 days
+
+    // Increment dismissal count
+    const dismissCount = parseInt(localStorage.getItem('pwa-dismiss-count') || '0')
+    const newCount = dismissCount + 1
+    localStorage.setItem('pwa-dismiss-count', newCount.toString())
+
+    // Remember dismissal timestamp
     localStorage.setItem('pwa-install-dismissed', Date.now().toString())
+
+    // Mark session as shown (prevents re-showing this session)
+    sessionStorage.setItem('pwa-prompt-shown', 'true')
+
+    console.log(`[PWA] Dismissal #${newCount} recorded`)
   }
 
   // Don't show if not mounted yet, already installed, or prompt not available
