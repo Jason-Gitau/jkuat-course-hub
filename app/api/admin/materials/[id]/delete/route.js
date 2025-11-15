@@ -14,7 +14,12 @@ import { deleteFromR2 } from '@/lib/storage/r2-client';
 
 export async function POST(request, { params }) {
   try {
-    const { id } = await params;
+    // Next.js 15: Access params directly without await for better Vercel edge compatibility
+    const { id } = params;
+
+    // Log request start for debugging
+    console.log(`[DELETE API] POST request received for material ID: ${id}`);
+
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -22,19 +27,47 @@ export async function POST(request, { params }) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.error(`[DELETE API] Authentication failed for material ${id}:`, userError?.message || 'No user');
+      return NextResponse.json({
+        error: 'Unauthorized',
+        materialId: id,
+        details: 'You must be logged in to perform this action'
+      }, {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
+      });
     }
 
+    console.log(`[DELETE API] User authenticated: ${user.email} (${user.id})`);
+
     // Check if user has admin role
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role, full_name')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (profileError) {
+      console.error(`[DELETE API] Profile fetch error for user ${user.id}:`, profileError);
     }
+
+    if (!profile || profile.role !== 'admin') {
+      console.warn(`[DELETE API] Access denied for user ${user.email} - Role: ${profile?.role || 'none'}`);
+      return NextResponse.json({
+        error: 'Admin access required',
+        materialId: id,
+        details: 'You must be an admin to perform this action'
+      }, {
+        status: 403,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
+      });
+    }
+
+    console.log(`[DELETE API] Admin verified: ${profile.full_name} (${profile.role})`);
 
     // Get request body
     const body = await request.json();
@@ -55,6 +88,7 @@ export async function POST(request, { params }) {
     }
 
     // Get material details before deletion
+    console.log(`[DELETE API] Fetching material ${id} from database...`);
     const { data: material, error: materialError } = await supabase
       .from('materials')
       .select(`
@@ -74,8 +108,20 @@ export async function POST(request, { params }) {
       .single();
 
     if (materialError || !material) {
-      return NextResponse.json({ error: 'Material not found' }, { status: 404 });
+      console.error(`[DELETE API] Material not found: ${id}`, materialError);
+      return NextResponse.json({
+        error: 'Material not found',
+        materialId: id,
+        details: materialError?.message || 'The requested material does not exist'
+      }, {
+        status: 404,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
+      });
     }
+
+    console.log(`[DELETE API] Material found: "${material.title}" (Downloads: ${material.download_count || 0}, Views: ${material.view_count || 0})`);
 
     // Check if already deleted
     if (material.deleted_at) {
@@ -114,6 +160,8 @@ export async function POST(request, { params }) {
         view_count_at_deletion: material.view_count || 0
       });
 
+      console.log(`[DELETE API] ✅ Soft delete successful: "${material.title}" (ID: ${id})`);
+
       return NextResponse.json({
         success: true,
         message: 'Material soft deleted (moved to trash)',
@@ -123,6 +171,10 @@ export async function POST(request, { params }) {
           title: material.title,
           downloads: material.download_count || 0,
           views: material.view_count || 0
+        }
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         }
       });
 
@@ -178,6 +230,8 @@ export async function POST(request, { params }) {
         // Material is already deleted from database, so continue
       }
 
+      console.log(`[DELETE API] ✅ Hard delete successful: "${material.title}" (ID: ${id})`);
+
       return NextResponse.json({
         success: true,
         message: 'Material permanently deleted',
@@ -188,15 +242,27 @@ export async function POST(request, { params }) {
           downloads: material.download_count || 0,
           views: material.view_count || 0
         }
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
       });
     }
 
   } catch (error) {
-    console.error('Material deletion error:', error);
-    return NextResponse.json(
-      { error: `Failed to delete material: ${error.message}` },
-      { status: 500 }
-    );
+    console.error('[DELETE API] ❌ POST Error:', error);
+    console.error('[DELETE API] Stack trace:', error.stack);
+    return NextResponse.json({
+      error: 'Failed to delete material',
+      details: error.message,
+      materialId: params?.id,
+      timestamp: new Date().toISOString()
+    }, {
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      }
+    });
   }
 }
 
@@ -206,7 +272,12 @@ export async function POST(request, { params }) {
  */
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    // Next.js 15: Access params directly without await for better Vercel edge compatibility
+    const { id } = params;
+
+    // Log request start for debugging
+    console.log(`[DELETE API] GET request received for material ID: ${id}`);
+
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -214,20 +285,49 @@ export async function GET(request, { params }) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.error(`[DELETE API] GET Authentication failed for material ${id}:`, userError?.message || 'No user');
+      return NextResponse.json({
+        error: 'Unauthorized',
+        materialId: id,
+        details: 'You must be logged in to view deletion impact'
+      }, {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
+      });
     }
 
-    const { data: profile } = await supabase
+    console.log(`[DELETE API] GET User authenticated: ${user.email}`);
+
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (profileError) {
+      console.error(`[DELETE API] GET Profile fetch error:`, profileError);
     }
 
+    if (!profile || profile.role !== 'admin') {
+      console.warn(`[DELETE API] GET Access denied for user ${user.email} - Role: ${profile?.role || 'none'}`);
+      return NextResponse.json({
+        error: 'Admin access required',
+        materialId: id,
+        details: 'You must be an admin to view deletion impact'
+      }, {
+        status: 403,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
+      });
+    }
+
+    console.log(`[DELETE API] GET Admin verified for impact analysis`);
+
     // Get material with impact stats
+    console.log(`[DELETE API] GET Fetching impact data for material ${id}...`);
     const { data: material, error } = await supabase
       .from('materials')
       .select(`
@@ -245,8 +345,20 @@ export async function GET(request, { params }) {
       .single();
 
     if (error || !material) {
-      return NextResponse.json({ error: 'Material not found' }, { status: 404 });
+      console.error(`[DELETE API] GET Material not found: ${id}`, error);
+      return NextResponse.json({
+        error: 'Material not found',
+        materialId: id,
+        details: error?.message || 'The requested material does not exist'
+      }, {
+        status: 404,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        }
+      });
     }
+
+    console.log(`[DELETE API] GET Impact data retrieved for: "${material.title}"`);
 
     // Calculate impact metrics
     const impactMetrics = {
@@ -263,6 +375,8 @@ export async function GET(request, { params }) {
         Math.floor((material.view_count || 0) / 3)
       )
     };
+
+    console.log(`[DELETE API] GET ✅ Returning impact data for "${material.title}"`);
 
     return NextResponse.json({
       success: true,
@@ -281,14 +395,26 @@ export async function GET(request, { params }) {
           ? 'This material has been viewed many times!'
           : null
       }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      }
     });
 
   } catch (error) {
-    console.error('Get deletion impact error:', error);
-    return NextResponse.json(
-      { error: `Failed to get impact data: ${error.message}` },
-      { status: 500 }
-    );
+    console.error('[DELETE API] ❌ GET Error:', error);
+    console.error('[DELETE API] GET Stack trace:', error.stack);
+    return NextResponse.json({
+      error: 'Failed to get impact data',
+      details: error.message,
+      materialId: params?.id,
+      timestamp: new Date().toISOString()
+    }, {
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      }
+    });
   }
 }
 

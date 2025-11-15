@@ -35,12 +35,35 @@ export default function DeletionModal({
 
   async function fetchImpactData() {
     setLoading(true);
+    const fetchUrl = `/api/admin/materials/${materialId}/delete`;
+
+    console.log(`[DeletionModal] 🔍 Fetching impact data...`);
+    console.log(`[DeletionModal] GET ${fetchUrl}`);
+    console.log(`[DeletionModal] Material ID: ${materialId}`);
+    console.log(`[DeletionModal] Timestamp: ${new Date().toISOString()}`);
+
     try {
-      const res = await fetch(`/api/admin/materials/${materialId}/delete`);
-      if (!res.ok) throw new Error('Failed to fetch impact data');
+      const res = await fetch(fetchUrl);
+
+      console.log(`[DeletionModal] Response status: ${res.status} ${res.statusText}`);
+      console.log(`[DeletionModal] Response headers:`, Object.fromEntries(res.headers.entries()));
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error(`[DeletionModal] ❌ Impact fetch failed:`, {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorData,
+          url: fetchUrl
+        });
+        throw new Error(errorData.details || errorData.error || `Failed to fetch impact data (${res.status})`);
+      }
+
       const data = await res.json();
+      console.log(`[DeletionModal] ✅ Impact data received:`, data);
       setImpactData(data);
     } catch (err) {
+      console.error(`[DeletionModal] ❌ Fetch error:`, err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -62,25 +85,46 @@ export default function DeletionModal({
     setIsDeleting(true);
     setError(null);
 
+    const deleteUrl = `/api/admin/materials/${materialId}/delete`;
+    const payload = {
+      deletionType,
+      reason: reason.trim(),
+    };
+
+    console.log(`[DeletionModal] 🗑️ Starting deletion...`);
+    console.log(`[DeletionModal] POST ${deleteUrl}`);
+    console.log(`[DeletionModal] Payload:`, payload);
+    console.log(`[DeletionModal] Material: "${materialTitle}" (${materialId})`);
+    console.log(`[DeletionModal] Timestamp: ${new Date().toISOString()}`);
+
     try {
-      const res = await fetch(`/api/admin/materials/${materialId}/delete`, {
+      const res = await fetch(deleteUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deletionType,
-          reason: reason.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log(`[DeletionModal] Delete response status: ${res.status} ${res.statusText}`);
+      console.log(`[DeletionModal] Delete response headers:`, Object.fromEntries(res.headers.entries()));
+
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete material');
+        const data = await res.json().catch(() => ({}));
+        console.error(`[DeletionModal] ❌ Deletion failed:`, {
+          status: res.status,
+          statusText: res.statusText,
+          error: data,
+          url: deleteUrl,
+          payload
+        });
+        throw new Error(data.details || data.error || `Failed to delete material (${res.status})`);
       }
 
       const data = await res.json();
+      console.log(`[DeletionModal] ✅ Deletion successful:`, data);
       onSuccess(data);
       onClose();
     } catch (err) {
+      console.error(`[DeletionModal] ❌ Delete error:`, err);
       setError(err.message);
     } finally {
       setIsDeleting(false);

@@ -14,7 +14,14 @@
       "WebSearch",
       "mcp__vercel-jkuat__search_vercel_documentation",
       "Bash(cat:*)",
-      "WebFetch(domain:vercel.com)"
+      "WebFetch(domain:vercel.com)",
+      "mcp__supabase__list_tables",
+      "Bash(dir:*)",
+      "mcp__vercel-jkuat__get_project",
+      "mcp__vercel-jkuat__list_deployments",
+      "mcp__vercel-jkuat__get_deployment",
+      "mcp__vercel-jkuat__get_deployment_build_logs",
+      "WebFetch(domain:jkuat-course-hub-wjit.vercel.app)"
     ],
     "deny": [],
     "ask": []
