@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import SmartCourseSelector from '@/components/onboarding/SmartCourseSelector'
 import InviteClassmatesModal from '@/components/onboarding/InviteClassmatesModal'
+import { sanitizeUUID } from '@/lib/utils/validators'
 
 export default function OnboardingPage() {
   const [user, setUser] = useState(null)
@@ -98,7 +99,14 @@ export default function OnboardingPage() {
 
       // Add referral tracking if coming from invite
       if (inviteParams?.inviterId) {
-        profileData.invited_by = inviteParams.inviterId
+        // Sanitize the UUID to handle cases where extra text was appended
+        // (e.g., from messaging apps: "uuid....guys")
+        const cleanInviterId = sanitizeUUID(inviteParams.inviterId)
+        if (cleanInviterId) {
+          profileData.invited_by = cleanInviterId
+        } else {
+          console.warn('Invalid inviter ID, skipping referral tracking:', inviteParams.inviterId)
+        }
       }
 
       // Create or update profile (upsert handles both new and existing profiles)

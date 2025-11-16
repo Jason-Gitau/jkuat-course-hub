@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { sanitizeUUID } from '@/lib/utils/validators'
 
 function LoginPageContent() {
   const [email, setEmail] = useState('')
@@ -16,8 +17,9 @@ function LoginPageContent() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const courseId = searchParams.get('c')
-  const inviterId = searchParams.get('ref')
+  // Sanitize URL parameters to handle corrupted UUIDs (e.g., "uuid....guys")
+  const courseId = sanitizeUUID(searchParams.get('c'))
+  const inviterId = sanitizeUUID(searchParams.get('ref'))
 
   // Check if already logged in and handle invite params
   useEffect(() => {

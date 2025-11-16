@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/lib/providers/UserProvider';
 import Link from 'next/link';
+import { sanitizeUUID } from '@/lib/utils/validators';
 
 function JoinPageContent() {
   const router = useRouter();
@@ -16,8 +17,9 @@ function JoinPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const courseId = searchParams.get('c');
-  const inviterId = searchParams.get('ref');
+  // Sanitize URL parameters to handle corrupted UUIDs (e.g., "uuid....guys")
+  const courseId = sanitizeUUID(searchParams.get('c'));
+  const inviterId = sanitizeUUID(searchParams.get('ref'));
 
   useEffect(() => {
     if (!courseId || !inviterId) {
